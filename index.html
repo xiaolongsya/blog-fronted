@@ -1,0 +1,38 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <link rel="icon" type="image/svg+xml" href="/vite.svg" />
+    <!-- 关键：viewport 标签添加 width=device-width，强制适配屏幕宽度 -->
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no">
+    <title>小龙の分享站</title>
+    <!-- 全局样式：直接作用于最外层，无优先级问题，不会导致白屏 -->
+    <style>
+      /* 1. 重置所有元素的默认边距和内边距 */
+      * {
+        margin: 0;
+        padding: 0;
+        box-sizing: border-box;
+      }
+
+      /* 2. 强制 html、body 占满整个视口，背景色统一为淡蓝，无横向溢出 */
+      html, body {
+        width: 100%;
+        height: 100%;
+        overflow-x: hidden;
+        background-color: #e6f7ff; /* 和博客页面背景一致，杜绝黑边 */
+      }
+
+      /* 3. 强制 Vue 挂载容器 #app 占满全屏，继承背景色 */
+      #app {
+        width: 100%;
+        min-height: 100vh;
+        background-color: inherit; /* 继承 body 的淡蓝背景，不额外设置避免冲突 */
+      }
+    </style>
+  </head>
+  <body>
+    <div id="app"></div>
+    <script type="module" src="/src/main.js"></script>
+  </body>
+</html>
