@@ -1,8 +1,37 @@
 <template>
   <div class="dragon-den">
-    <h1>我的个人信息</h1>
-    <p>用户名：小龙</p>
-    <p>头像：<img src="https://xiaolongya.cn/uploads/avatar.jpg" alt="头像" style="width: 80px; border-radius: 50%;"></p>
+    <!-- 龙的概况标题 -->
+    <h1 class="dragon-overview">龙的概况</h1>
+
+    <!-- 头像区域 -->
+    <div class="avatar-section">
+      <img 
+        src="https://xiaolongya.cn/uploads/avatar.jpg" 
+        alt="头像" 
+        class="dragon-avatar"
+      />
+    </div>
+
+    <!-- 正文信息区域 -->
+    <div class="info-section">
+      <p class="info-item"><strong>昵称：</strong>小龙</p>
+      <p class="info-item"><strong>龙的窝点：</strong>广东</p>
+      <p class="info-item"><strong>龙蛋破壳日：</strong>2007-07-22</p>
+      <p class="info-item"><strong>个性签名：</strong>适度编程益脑，过度编程伤身</p>
+      <p class="info-item">
+        <strong>Github：</strong>
+        <a href="https://github.com/xiaolongsya" target="_blank" class="github-link">xiaolongsya</a>
+      </p>
+      <p class="info-item">
+        <strong>标签：</strong>
+        <span class="tag">①后端（Java）</span>
+        <span class="tag">②算法（菜鸡）</span>
+        <span class="tag">③00后</span>
+        <span class="tag">④喜欢折腾</span>
+        <span class="tag">⑤羽毛球</span>
+        <span class="tag">⑥乒乓球</span>
+      </p>
+    </div>
   </div>
 </template>
 
@@ -10,5 +39,71 @@
 .dragon-den {
   padding: 40px;
   text-align: center;
+  background-color: #f0f8ff;
+  min-height: 100vh;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+}
+
+/* 龙的概况标题样式 */
+.dragon-overview {
+  font-size: 36px;
+  font-weight: bold;
+  color: #2f5496;
+  margin-bottom: 30px;
+  letter-spacing: 4px;
+}
+
+/* 头像区域样式 */
+.avatar-section {
+  display: flex;
+  justify-content: flex-end;
+  margin-bottom: 40px;
+}
+
+/* 头像样式 */
+.dragon-avatar {
+  width: 200px;
+  height: 200px;
+  border-radius: 50%;
+  border: 6px solid #2f5496;
+  box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
+}
+
+/* 正文信息区域样式 */
+.info-section {
+  text-align: left;
+  max-width: 600px;
+  margin: 0 auto;
+}
+
+/* 每一行信息样式 */
+.info-item {
+  font-size: 20px;
+  color: #333;
+  margin: 15px 0;
+  line-height: 1.6;
+}
+
+/* Github 链接样式 */
+.github-link {
+  color: #2f5496;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.github-link:hover {
+  text-decoration: underline;
+}
+
+/* 标签样式 */
+.tag {
+  display: inline-block;
+  background-color: #b3d8ff;
+  color: #2f5496;
+  padding: 4px 10px;
+  border-radius: 12px;
+  margin: 0 5px;
+  font-size: 14px;
+  font-weight: bold;
 }
 </style>

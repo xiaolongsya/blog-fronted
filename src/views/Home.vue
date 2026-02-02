@@ -3,6 +3,7 @@
   <div class="home-page">
     <!-- 标题与头像区域 -->
     <section class="title-avatar-wrap">
+        <button  class="recent-btn"   @click="router.push('/recent-activity')" > 看看龙最近在做什么</button>
       <!-- 博客主标题 -->
       <h1 class="blog-main-title">小龙の分享站</h1>
       <!-- 个人头像图片：Vue 3 中统一使用脚本内的 router 实例 -->
@@ -560,6 +561,36 @@ const handleLogin = async () => {
 
   .beian-link {
     font-size: 10px;
+  }
+}
+.recent-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 12px 24px;
+  background-color: #2f5496;
+  color: white;
+  border: none;
+  border-radius: 24px;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+
+.recent-btn:hover {
+  background-color: #1f3a6b;
+}
+
+/* 响应式适配 */
+@media (max-width: 768px) {
+  .recent-btn {
+    position: static;
+    transform: none;
+    margin-bottom: 15px;
+    padding: 8px 18px;
+    font-size: 14px;
   }
 }
 </style>

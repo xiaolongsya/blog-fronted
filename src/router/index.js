@@ -6,23 +6,25 @@ import DragonTools from '../views/DragonTools.vue'
 import CommentArea from '../views/CommentArea.vue'
 import DragonDevelopment from '../views/DragonDevelopment.vue'
 import Admin from '../views/Admin.vue'
+import CategoryDetail from '../views/CategoryDetail.vue'
+import RecentActivity from '../views/RecentActivity.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
   { path: '/dragon-den', name: 'DragonDen', component: DragonDen },
   { path: '/dragon-growth', name: 'DragonGrowth', component: DragonGrowth },
   { path: '/dragon-tools', name: 'DragonTools', component: DragonTools },
-  // 新增评论区路由（先占位，页面后续创建）
+  // 新增评论区路由
   { 
     path: '/comment-area', 
     name: 'CommentArea', 
     component: CommentArea 
   },
-  // 新增龙岛发展路由（先占位，页面后续创建）
+  // 新增龙岛发展路由
   { 
     path: '/dragon-development', 
     name: 'DragonDevelopment', 
-    component: DragonDevelopment 
+    component: DragonDevelopment
   },
   // 新增管理员界面：添加 meta.requiresAuth = true （关键修改，就这1行）
   {
@@ -30,7 +32,21 @@ const routes = [
     name: 'Admin',
     component: Admin,
     meta: { requiresAuth: true } // 👉 新增这行！标记该路由需要登录验证
-  }
+  },
+  //龙的成长详细页
+  {
+    path: '/category/:id',
+    name: 'CategoryDetail',
+    component: CategoryDetail,
+    props: true
+  },
+  // 新增最近活动路由
+  {
+    path: '/recent-activity',
+    name: 'RecentActivity',
+    component: RecentActivity
+  },
+
 ]
 
 const router = createRouter({

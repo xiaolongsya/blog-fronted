@@ -1,3 +1,4 @@
+<!-- DragonDevelopment.vue -->
 <template>
   <div class="development-page">
     <!-- 页面顶部标题 -->
@@ -53,24 +54,19 @@
 <script setup>
 import { ref, onMounted } from 'vue'
 
-// 定义数据
 const updateList = ref([])
 const bigImageUrl = ref('')
 
-// 获取更新记录接口
 const fetchUpdateList = async () => {
   try {
     const res = await fetch('https://xiaolongya.cn/blog/development/list')
-    // 先判断 HTTP 状态码是否成功
     if (!res.ok) throw new Error('网络请求失败')
     const data = await res.json()
     
-    // 兼容接口是否返回 code 字段
     if (data.code === 200 || !data.code) {
       updateList.value = (data.data || []).map(item => ({
         time: item.createTime ? item.createTime.split(' ')[0] : '',
         content: item.content || '',
-        // 兼容 imgUrls 是数组或字符串两种情况
         images: Array.isArray(item.imgUrls) 
           ? item.imgUrls 
           : (item.imgUrls ? item.imgUrls.split(',') : [])
@@ -81,12 +77,10 @@ const fetchUpdateList = async () => {
   }
 }
 
-// 页面加载时调用接口
 onMounted(() => {
   fetchUpdateList()
 })
 
-// 图片放大相关
 const showBigImage = (url) => {
   bigImageUrl.value = url
 }
@@ -108,11 +102,10 @@ const closeBigImage = () => {
   font-size: 56px;
   color: #2f5496;
   text-align: center;
-  margin-bottom: 20px; /* 调整间距 */
+  margin-bottom: 20px;
   letter-spacing: 8px;
 }
 
-/* 新增仓库链接样式 */
 .repo-links {
   text-align: center;
   margin-bottom: 40px;
@@ -161,7 +154,6 @@ const closeBigImage = () => {
   position: relative;
 }
 
-/* 节点左上角的时间（放大加粗） */
 .item-time {
   position: absolute;
   top: 15px;
@@ -172,13 +164,12 @@ const closeBigImage = () => {
 }
 
 .item-content {
-  margin-top: 40px; /* 给时间留出位置 */
+  margin-top: 40px;
   font-size: 18px;
   color: #333;
   line-height: 1.6;
 }
 
-/* 图片区域（缩小排列） */
 .item-image-wrap {
   margin-top: 20px;
   display: flex;
@@ -197,7 +188,6 @@ const closeBigImage = () => {
   transform: scale(1.05);
 }
 
-/* 图片放大弹窗 */
 .image-modal-mask {
   position: fixed;
   top: 0;
