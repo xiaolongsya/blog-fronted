@@ -128,6 +128,7 @@ const closeBigImage = () => {
   margin: 0 auto;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   background-color: #e6f7ff; /* 浅蓝色背景 */
+  font-size: 20px; /* 全局字体加大 */
 }
 
 .back-button-section {
@@ -141,7 +142,7 @@ const closeBigImage = () => {
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 0.9rem;
+  font-size: 1.1rem; /* 按钮文字加大 */
 }
 
 .back-btn:hover {
@@ -154,7 +155,7 @@ const closeBigImage = () => {
 }
 
 .category-title {
-  font-size: 2.2rem;
+  font-size: 2.8rem; /* 标题字体加大 */
   color: #2f5496;
   margin: 0;
   font-weight: bold;
@@ -175,14 +176,14 @@ const closeBigImage = () => {
   border: 1px solid #e8e8e8;
   width: 100%;
   /* 固定卡片高度，保证所有节点大小一致 */
-  height: 320px;
+  height: 360px; /* 卡片高度加大 */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
 }
 
 .node-time-label {
-  font-size: 1rem;
+  font-size: 1.2rem; /* 时间标签字体加大 */
   color: #2f5496;
   background: transparent;
   padding: 0 0 10px 0;
@@ -196,12 +197,12 @@ const closeBigImage = () => {
 .node-content {
   flex: 1;
   margin-bottom: 15px;
-  line-height: 1.6;
+  line-height: 1.8; /* 行高加大 */
   overflow: hidden;
 }
 
 .node-text {
-  font-size: 1rem;
+  font-size: 1.2rem; /* 内容文字加大 */
   color: #333;
   white-space: pre-wrap;
   max-width: 100%;
@@ -218,8 +219,8 @@ const closeBigImage = () => {
 
 /* 小图完整显示 */
 .node-image {
-  width: 120px;
-  height: 90px;
+  width: 140px; /* 图片宽度加大 */
+  height: 105px; /* 图片高度加大 */
   object-fit: contain;
   background: #f5f5f5;
   border-radius: 4px;
@@ -259,25 +260,25 @@ const closeBigImage = () => {
   }
 
   .category-title {
-    font-size: 1.8rem;
+    font-size: 2.2rem; /* 移动端标题加大 */
   }
 
   .node-card {
     padding: 15px;
-    height: 280px;
+    height: 320px; /* 移动端卡片高度加大 */
   }
 
   .node-time-label {
-    font-size: 0.9rem;
+    font-size: 1.1rem; /* 移动端时间标签加大 */
   }
 
   .node-text {
-    font-size: 0.9rem;
+    font-size: 1.1rem; /* 移动端内容文字加大 */
   }
 
   .node-image {
-    width: 100px;
-    height: 75px;
+    width: 120px; /* 移动端图片宽度加大 */
+    height: 90px; /* 移动端图片高度加大 */
   }
 }
 </style>

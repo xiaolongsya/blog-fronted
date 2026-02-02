@@ -96,14 +96,15 @@ const closeBigImage = () => {
   margin: 40px auto;
   padding: 0 20px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-size: 20px; /* 全局字体加大 */
 }
 
 .page-title {
-  font-size: 56px;
+  font-size: 64px; /* 标题字体加大 */
   color: #2f5496;
   text-align: center;
   margin-bottom: 20px;
-  letter-spacing: 8px;
+  letter-spacing: 10px; /* 字间距加大 */
 }
 
 .repo-links {
@@ -123,7 +124,7 @@ const closeBigImage = () => {
   color: white !important;
   text-decoration: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 18px; /* 链接字体加大 */
   transition: all 0.3s ease;
   max-width: 90%;
   word-break: break-all;
@@ -158,16 +159,16 @@ const closeBigImage = () => {
   position: absolute;
   top: 15px;
   left: 20px;
-  font-size: 24px;
+  font-size: 28px; /* 时间字体加大 */
   font-weight: 900;
   color: #2f5496;
 }
 
 .item-content {
   margin-top: 40px;
-  font-size: 18px;
+  font-size: 22px; /* 内容字体加大 */
   color: #333;
-  line-height: 1.6;
+  line-height: 1.8; /* 行高增加以提升可读性 */
 }
 
 .item-image-wrap {
@@ -209,20 +210,20 @@ const closeBigImage = () => {
 /* 响应式适配 */
 @media (max-width: 768px) {
   .page-title {
-    font-size: 32px;
-    letter-spacing: 4px;
+    font-size: 40px; /* 移动端标题字体加大 */
+    letter-spacing: 6px;
   }
   .repo-link {
-    font-size: 14px;
+    font-size: 16px; /* 移动端链接字体加大 */
     padding: 8px 15px;
     margin: 6px 0;
     display: block;
   }
   .item-time {
-    font-size: 20px;
+    font-size: 24px; /* 移动端时间字体加大 */
   }
   .item-content {
-    font-size: 16px;
+    font-size: 20px; /* 移动端内容字体加大 */
   }
   .item-image {
     width: 100px;
