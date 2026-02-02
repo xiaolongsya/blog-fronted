@@ -3,7 +3,16 @@
     <h1>龙的工具库</h1>
     <div class="tools-grid">
       <div class="tool-card" v-for="(tool, idx) in toolsList" :key="idx">
-        <div class="tool-icon">{{ tool.icon }}</div>
+        <!-- 判断 icon 是否为图片 URL -->
+        <img 
+          v-if="isImageUrl(tool.icon)" 
+          :src="tool.icon" 
+          :alt="tool.name" 
+          class="tool-icon"
+        />
+        <!-- 如果不是图片，则显示图标字符 -->
+        <div v-else class="tool-icon">{{ tool.icon }}</div>
+
         <h3>{{ tool.name }}</h3>
         <p>{{ tool.desc }}</p>
         <a :href="tool.link" target="_blank" class="tool-link">前往使用 →</a>
@@ -15,30 +24,17 @@
 <script setup>
 const toolsList = [
   {
-    icon: "⚙️",
-    name: "Vue DevTools",
-    desc: "Vue 官方调试工具，实时查看组件树、状态变化",
-    link: "https://github.com/vuejs/devtools"
-  },
-  {
-    icon: "🔧",
-    name: "Vite",
-    desc: "极速的前端构建工具，开发体验拉满",
-    link: "https://vite.dev/"
-  },
-  {
-    icon: "📦",
-    name: "Pinia",
-    desc: "Vue 新一代状态管理库，替代 Vuex",
-    link: "https://pinia.vuejs.org/"
-  },
-  {
-    icon: "🧪",
-    name: "Vitest",
-    desc: "基于 Vite 的单元测试框架，轻量高效",
-    link: "https://vitest.dev/"
+    icon: "http://xiaolongya.cn/uploads/15a06548-6ba8-46cf-be8d-07c71eda0b11.png",
+    name: "Watt Toolkit",
+    desc: "可以对github和steam进行免费加速，加速情况尚可，免费就是正义哇小龙",
+    link: "https://steampp.net/"
   }
 ];
+
+// 判断是否为图片 URL 的辅助函数
+const isImageUrl = (str) => {
+  return typeof str === 'string' && (str.startsWith('http') || str.startsWith('/'));
+};
 </script>
 
 <style scoped>
@@ -49,8 +45,8 @@ const toolsList = [
 }
 
 h1 {
-  font-size: 42px;
-  color: #2f5496;
+  font-size: 100px;
+  color: #00c0e2;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   text-align: center;
   margin-bottom: 40px;
@@ -63,7 +59,8 @@ h1 {
 }
 
 .tool-card {
-  background: #fff;
+  /* 核心修改：将白色背景改为 rgba 格式，设置透明度 0.6 */
+  background: rgba(255, 255, 255, 0.6);
   padding: 30px;
   border-radius: 16px;
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
@@ -71,8 +68,10 @@ h1 {
 }
 
 .tool-icon {
-  font-size: 48px;
+  width: 48px;
+  height: 48px;
   margin-bottom: 15px;
+  object-fit: contain;
 }
 
 .tool-card h3 {

@@ -22,6 +22,9 @@
 
     <!-- 主要内容区域 -->
     <section class="main-content-wrap">
+      <!-- 新增：蓝色区块内圆圈上方的提示文字 -->
+      <div class="content-tip-text">在这里你可以看到龙的开源项目，实用工具，成长感悟与其他分享！</div>
+      
       <!-- 循环渲染圆形项目列表：增加 .prevent 阻止默认行为，解决点击恢复原形 -->
       <div 
         class="circle-item" 
@@ -129,23 +132,6 @@ const closeLoginModal = () => {
 }
 
 /**
- * 新增：页面加载时拦截直接访问 /admin 路由
- * 作用：用户直接输入 https://xiaolongya.cn/admin 时，强制跳回主页并提示登录
- */
-onMounted(() => {
-  // 1. 判断当前是否访问的是 /admin 路由
-  if (route.path === '/admin') {
-    // 2. 检查本地是否有登录标识（登录成功时存入的）
-    const isAdminLogin = localStorage.getItem('isAdminLogin')
-    // 3. 无登录标识 = 未通过弹窗登录，强制拦截
-    if (!isAdminLogin) {
-      router.push('/') // 跳回主页
-      alert('请先通过"龙岛的后台"按钮登录，禁止直接访问后台！')
-    }
-  }
-})
-
-/**
  * 处理管理员登录逻辑（POST 请求 + 标准 JSON 格式传参）
  */
 const handleLogin = async () => {
@@ -213,7 +199,7 @@ const handleLogin = async () => {
 .blog-main-title {
   font-size: 86px;
   font-weight: 900;
-  color: #2f5496;
+  color: #00c0e2;
   font-family: "Ma Shan Zheng", "楷体", "STKaiti", cursive;
   letter-spacing: 14px;
   text-align: center;
@@ -234,15 +220,34 @@ const handleLogin = async () => {
 /* 主要内容区域样式*/
 .main-content-wrap {
   width: 100%;
-  height: 520px;
-  background-color: #b3d8ff;
+  /* 修改：固定高度改为最小高度，自适应新增文字 */
+  min-height: 520px;
+  /* 核心修改：将纯色背景改为 RGBA 格式，透明度 0.6 */
+  background-color: rgba(179, 216, 255, 0.6);
   border-radius: 120px;
-  display: flex;
-  justify-content: space-between; /* 替换 space-around 为 space-between，间距更均匀可控 */
+  /* 修改：改为垂直排列，保证文字在上、圆圈在下 */
+  flex-direction: column;
+  justify-content: center;
   align-items: center;
-  padding: 0 180px; /* 大幅增加左右内边距，间接增大圆圈之间的间距（核心间距优化） */
+  padding: 40px 180px; /* 修改：增加上下内边距，避免文字贴顶 */
   margin-bottom: 50px;
   box-sizing: border-box;
+  display: flex;
+}
+
+/* 新增：蓝色区块内圆圈上方的提示文字样式（复用圆圈字体样式） */
+.content-tip-text {
+  /* 复用圆圈内文字的字体样式，保证统一 */
+  font-size: 38px;
+  font-weight: 700;
+  color: #2f5496;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  text-align: center;
+  line-height: 1.5;
+  
+  /* 布局调整：与下方圆圈保持间距，占据整行宽度 */
+  width: 100%;
+  margin-bottom: 40px; /* 与下方圆圈拉开距离，可按需调整 */
 }
 
 /* 圆形项目项样式（统一布局，无额外外边距干扰） */
@@ -510,6 +515,15 @@ const handleLogin = async () => {
     flex-direction: column;
     gap: 50px; /* 手机端垂直排列，增大上下间距（核心间距优化） */
     margin-bottom: 20px;
+    /* 手机端同步设置相同透明度 */
+    background-color: rgba(179, 216, 255, 0.3);
+  }
+
+  /* 新增：手机端提示文字适配 */
+  .content-tip-text {
+    font-size: 20px; /* 与手机端圆圈文字大小一致 */
+    margin-bottom: 20px; /* 手机端缩小上下间距 */
+    padding: 0 10px; /* 防止文字超出屏幕两侧 */
   }
 
   .circle-item {
@@ -563,6 +577,7 @@ const handleLogin = async () => {
     font-size: 10px;
   }
 }
+
 .recent-btn {
   position: absolute;
   left: 0;

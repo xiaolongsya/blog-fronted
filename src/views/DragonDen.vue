@@ -39,7 +39,7 @@
 .dragon-den {
   padding: 40px;
   text-align: center;
-  background-color: #f0f8ff;
+  background-color:rgba(255, 255, 255, 0.6);;
   min-height: 100vh;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
 }
@@ -69,16 +69,21 @@
   box-shadow: 0 5px 15px rgba(0, 0, 0, 0.2);
 }
 
-/* 正文信息区域样式 */
+/* 正文信息区域样式 - 核心修改：添加白色透明背景（0.6） */
 .info-section {
   text-align: left;
   max-width: 600px;
   margin: 0 auto;
+  background-color: rgba(255, 255, 255, 1);
+  border-radius: 16px;
+  padding: 30px;
+  /* 新增：轻微阴影，提升层次感 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
 }
 
 /* 每一行信息样式 */
 .info-item {
-  font-size: 20px;
+  font-size: 30px;
   color: #333;
   margin: 15px 0;
   line-height: 1.6;
@@ -95,10 +100,10 @@
   text-decoration: underline;
 }
 
-/* 标签样式 */
+/* 标签样式 - 可选优化：标签背景也同步增加轻微透明度，保持风格统一 */
 .tag {
   display: inline-block;
-  background-color: #b3d8ff;
+  background: rgba(179, 216, 255, 0.8); /* 原 #b3d8ff 增加 0.8 透明度 */
   color: #2f5496;
   padding: 4px 10px;
   border-radius: 12px;

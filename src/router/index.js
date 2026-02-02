@@ -58,12 +58,12 @@ const router = createRouter({
 router.beforeEach((to, from, next) => {
   // 判断目标路由是否需要登录
   if (to.meta.requiresAuth) {
-    // 简单判断：是否有登录标识（你可以根据后端返回的Token优化）
-    const isLogin = localStorage.getItem('isAdminLogin') // 后续登录成功后存入该标识
+    const isLogin = localStorage.getItem('isAdminLogin')
     if (isLogin) {
       next() // 已登录，正常跳转
     } else {
-      next('/') // 未登录，跳回主页（让用户通过弹窗登录）
+      // 未登录，跳回主页并提示
+      next('/')
       alert('请先通过管理员登录弹窗进入后台！')
     }
   } else {

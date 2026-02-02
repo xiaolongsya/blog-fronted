@@ -49,6 +49,7 @@ const expandedIndex = ref(-1)
 // 活动数据，你以后直接在这里修改内容即可
 const activityList = [
   { title: '后端考核三（保密不可查看）', content: '' },
+  { title: '软件设计比赛', content: '我的小伙伴真的太棒啦，赞' },
   { title: '算法学习', content: '期末后就一直摸鱼岛寒假，为了不让比赛报名变商业捐款而奋斗' },
   { title: '个人博客', content: '这里没啥好看的，你看的不就是了吗' },
   { title: '文远凌云（保密不可查看）', content: '' },

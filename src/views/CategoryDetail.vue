@@ -44,9 +44,17 @@
       </div>
     </div>
 
-    <!-- 图片放大弹窗 -->
+    <!-- 图片放大弹窗（添加ref和触摸事件） -->
     <div class="image-modal-mask" v-if="bigImageUrl" @click="closeBigImage">
-      <img :src="bigImageUrl" class="image-modal-img" @click.stop>
+      <img 
+        ref="modalImageRef"
+        :src="bigImageUrl" 
+        class="image-modal-img" 
+        @click.stop
+        @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
+      >
     </div>
   </div>
 </template>
@@ -63,6 +71,13 @@ const route = useRoute()
 const category = ref(null)
 const nodes = ref([])
 const bigImageUrl = ref('') // 大图URL
+
+// 新增：图片缩放拖拽相关变量
+const modalImageRef = ref(null) // 大图DOM引用
+const scale = ref(1) // 缩放比例
+const lastDistance = ref(0) // 上一次双指距离
+const startPos = ref({ x: 0, y: 0 }) // 拖拽起始位置
+const translatePos = ref({ x: 0, y: 0 }) // 图片偏移位置
 
 // 页面加载时执行
 onMounted(async () => {
@@ -110,9 +125,71 @@ const handleImageError = (event) => {
   event.target.style.display = 'none'
 }
 
-// 图片点击放大
+// 新增：触摸开始（双指初始距离/单指起始位置）
+const handleTouchStart = (e) => {
+  if (e.touches.length === 2) {
+    // 双指：计算初始距离
+    const x1 = e.touches[0].clientX
+    const y1 = e.touches[0].clientY
+    const x2 = e.touches[1].clientX
+    const y2 = e.touches[1].clientY
+    lastDistance.value = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
+  } else if (e.touches.length === 1) {
+    // 单指：记录拖拽起始位置
+    startPos.value = {
+      x: e.touches[0].clientX - translatePos.value.x,
+      y: e.touches[0].clientY - translatePos.value.y
+    }
+  }
+}
+
+// 新增：触摸移动（双指缩放/单指拖拽）
+const handleTouchMove = (e) => {
+  e.preventDefault() // 阻止页面滚动穿透
+  const imageDom = modalImageRef.value
+  if (!imageDom) return
+
+  if (e.touches.length === 2) {
+    // 双指缩放
+    const x1 = e.touches[0].clientX
+    const y1 = e.touches[0].clientY
+    const x2 = e.touches[1].clientX
+    const y2 = e.touches[1].clientY
+    const currentDistance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
+
+    // 计算缩放增量，限制1~5倍缩放
+    const scaleDelta = currentDistance / lastDistance.value
+    scale.value = Math.max(1, Math.min(5, scale.value * scaleDelta))
+    lastDistance.value = currentDistance
+
+    // 应用缩放+拖拽样式
+    imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
+  } else if (e.touches.length === 1 && scale.value > 1) {
+    // 单指拖拽（仅缩放后可用）
+    translatePos.value = {
+      x: e.touches[0].clientX - startPos.value.x,
+      y: e.touches[0].clientY - startPos.value.y
+    }
+
+    // 应用缩放+拖拽样式
+    imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
+  }
+}
+
+// 新增：触摸结束（重置临时变量）
+const handleTouchEnd = () => {
+  lastDistance.value = 0
+}
+
+// 图片点击放大（重置缩放和拖拽状态）
 const showBigImage = (url) => {
   bigImageUrl.value = url
+  // 重置缩放和拖拽
+  scale.value = 1
+  translatePos.value = { x: 0, y: 0 }
+  if (modalImageRef.value) {
+    modalImageRef.value.style.transform = 'scale(1) translate(0, 0)'
+  }
 }
 
 // 关闭大图弹窗
@@ -127,8 +204,8 @@ const closeBigImage = () => {
   max-width: 800px;
   margin: 0 auto;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
-  background-color: #e6f7ff; /* 浅蓝色背景 */
   font-size: 20px; /* 全局字体加大 */
+  /* 已删除浅蓝色背景属性，页面恢复默认背景（通常为白色） */
 }
 
 .back-button-section {
@@ -232,7 +309,7 @@ const closeBigImage = () => {
   transform: scale(1.05);
 }
 
-/* 图片放大弹窗 */
+/* 图片放大弹窗（优化样式适配缩放拖拽） */
 .image-modal-mask {
   position: fixed;
   top: 0;
@@ -244,6 +321,8 @@ const closeBigImage = () => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
+  overflow: hidden; /* 隐藏超出遮罩的图片部分 */
+  touch-action: none; /* 禁用默认触摸行为 */
 }
 
 .image-modal-img {
@@ -251,6 +330,9 @@ const closeBigImage = () => {
   max-height: 90%;
   object-fit: contain;
   border-radius: 8px;
+  touch-action: none; /* 禁用浏览器默认触摸行为 */
+  transform-origin: center center; /* 以图片中心缩放，更符合直觉 */
+  transition: transform 0.1s ease; /* 缩放/拖拽过渡，更顺滑 */
 }
 
 /* 响应式适配 */
