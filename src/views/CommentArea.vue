@@ -6,43 +6,60 @@
     <!-- 评论表单 -->
     <div class="comment-form-wrap">
       <h3 class="form-title">留下你的足迹</h3>
-      <form @submit.prevent="submitComment" class="comment-form">
+      <form @submit.prevent="handleSubmit" class="comment-form">
         <!-- 原有昵称输入项 -->
-<div class="form-item">
-  <label class="form-label">昵称：</label>
-  <input 
-    v-model="username" 
-    type="text" 
-    placeholder="请输入你的昵称" 
-    required
-    class="form-input"
-  >
-</div>
+        <div class="form-item">
+          <label class="form-label">昵称：</label>
+          <input 
+            v-model="username" 
+            type="text" 
+            placeholder="请输入你的昵称" 
+            required
+            class="form-input"
+          >
+        </div>
 
-<!-- 新增：联系方式输入框 -->
-<div class="form-item">
-  <label class="form-label">联系方式：</label>
-  <input 
-    v-model="contact"  
-    type="text" 
-    placeholder="微信/QQ/手机号等（可选，仅用于后台联系）" 
-    class="form-input"
-  >
-  <small class="contact-tip">（评论区不显示）</small> <!-- 标注提示 -->
-</div>
+        <!-- 新增：联系方式输入框 -->
+        <div class="form-item">
+          <label class="form-label">联系方式：</label>
+          <input 
+            v-model="contact"  
+            type="text" 
+            placeholder="微信/QQ/手机号等（可选，仅用于后台联系）" 
+            class="form-input"
+          >
+          <small class="contact-tip">（评论区不显示）</small> <!-- 标注提示 -->
+        </div>
 
-<!-- 原有留言输入项 -->
-<div class="form-item">
-  <label class="form-label">留言：</label>
-  <textarea 
-    v-model="content" 
-    rows="4" 
-    placeholder="想说点什么？和小龙聊聊～" 
-    required
-    class="form-textarea"
-  ></textarea>
-</div>
-        <button type="submit" class="submit-btn">提交留言</button>
+        <!-- 原有留言输入项 -->
+        <div class="form-item">
+          <label class="form-label">留言：</label>
+          <textarea 
+            v-model="content" 
+            rows="4" 
+            placeholder="想说点什么？和小龙聊聊～" 
+            required
+            class="form-textarea"
+          ></textarea>
+        </div>
+
+        <!-- 新增：滑块验证码 -->
+        <div class="slider-verify-wrap" v-if="showSliderVerify">
+          <div class="slider-verify-title">请完成滑块验证</div>
+          <div class="slider-verify-box" ref="sliderBox">
+            <div class="slider-verify-bg"></div>
+            <div 
+              class="slider-verify-btn" 
+              :style="{ left: sliderLeft + 'px' }"
+              @mousedown="startDrag"
+              @touchstart="startDrag"
+            >
+              🚀
+            </div>
+          </div>
+        </div>
+
+        <button type="submit" class="submit-btn" :disabled="showSliderVerify">提交留言</button>
       </form>
     </div>
 
@@ -66,22 +83,35 @@
 </template>
 
 <script setup>
-import { ref, onMounted } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 
-axios.defaults.baseURL = 'http://124.221.211.146:8083'
+axios.defaults.baseURL = 'https://xiaolongya.cn/blog'
 
-// 表单数据：新增contact变量
+// 表单数据
 const username = ref('')
-const contact = ref('')  // 新增：联系方式
+const contact = ref('')
 const content = ref('')
 const commentList = ref([])
 
-// 页面加载逻辑不变（无需修改）
+// 滑块验证码相关变量
+const showSliderVerify = ref(false) // 是否显示滑块验证
+const sliderLeft = ref(0) // 滑块左侧距离
+const sliderBox = ref(null) // 滑块容器ref
+const isDragging = ref(false) // 是否正在拖动
+const sliderWidth = ref(0) // 滑块容器宽度
+const btnWidth = ref(40) // 滑块按钮宽度
+
+// 页面加载逻辑
 onMounted(async () => {
   const savedName = localStorage.getItem('dragonCommentName')
   if (savedName) {
     username.value = savedName
+  }
+
+  // 初始化滑块宽度
+  if (sliderBox.value) {
+    sliderWidth.value = sliderBox.value.offsetWidth
   }
 
   try {
@@ -94,7 +124,6 @@ onMounted(async () => {
         username: item.name,
         content: item.content,
         time: item.createTime
-        // 不处理contact，评论区自然不显示
       }))
     } else {
       alert('获取评论失败：' + res.data.msg)
@@ -105,17 +134,113 @@ onMounted(async () => {
   }
 })
 
-// 提交评论：新增contact参数传给后端
-const submitComment = async () => {
+// 监听窗口大小变化，更新滑块宽度
+onMounted(() => {
+  window.addEventListener('resize', updateSliderWidth)
+})
+
+onUnmounted(() => {
+  window.removeEventListener('resize', updateSliderWidth)
+  // 移除鼠标/触摸事件监听
+  window.removeEventListener('mousemove', handleDrag)
+  window.removeEventListener('mouseup', endDrag)
+  window.removeEventListener('touchmove', handleDrag)
+  window.removeEventListener('touchend', endDrag)
+})
+
+// 更新滑块容器宽度
+const updateSliderWidth = () => {
+  if (sliderBox.value) {
+    sliderWidth.value = sliderBox.value.offsetWidth
+  }
+}
+
+// 开始拖动滑块
+const startDrag = (e) => {
+  isDragging.value = true
+  sliderLeft.value = 0 // 重置滑块位置
+
+  // 添加鼠标/触摸事件监听
+  window.addEventListener('mousemove', handleDrag)
+  window.addEventListener('mouseup', endDrag)
+  window.addEventListener('touchmove', handleDrag)
+  window.addEventListener('touchend', endDrag)
+
+  // 阻止默认事件，防止拖动时页面滚动
+  e.preventDefault()
+}
+
+// 拖动过程中
+const handleDrag = (e) => {
+  if (!isDragging.value || !sliderBox.value) return
+
+  // 兼容鼠标和触摸事件
+  let clientX = e.clientX
+  if (e.touches && e.touches[0]) {
+    clientX = e.touches[0].clientX
+  }
+
+  // 获取滑块容器的页面坐标
+  const boxRect = sliderBox.value.getBoundingClientRect()
+  // 计算滑块左侧距离
+  let left = clientX - boxRect.left
+
+  // 限制滑块移动范围
+  if (left < 0) left = 0
+  if (left > sliderWidth.value - btnWidth.value) left = sliderWidth.value - btnWidth.value
+
+  sliderLeft.value = left
+}
+
+// 结束拖动
+const endDrag = () => {
+  if (!isDragging.value) return
+  isDragging.value = false
+
+  // 移除鼠标/触摸事件监听
+  window.removeEventListener('mousemove', handleDrag)
+  window.removeEventListener('mouseup', endDrag)
+  window.removeEventListener('touchmove', handleDrag)
+  window.removeEventListener('touchend', endDrag)
+
+  // 验证是否拖动到最右侧（误差±5px）
+  const isVerified = sliderLeft.value >= (sliderWidth.value - btnWidth.value - 5)
+  if (isVerified) {
+    // 验证成功，提交评论
+    submitComment()
+  } else {
+    // 验证失败，重置滑块
+    alert('验证失败，请拖动到最右侧完成验证～')
+    sliderLeft.value = 0
+  }
+}
+
+// 处理提交（先显示滑块验证）
+const handleSubmit = () => {
+  // 先校验昵称和留言是否为空
   if (!username.value.trim() || !content.value.trim()) {
     alert('昵称和留言不能为空哦～')
     return
   }
 
-  // 构造请求参数：新增contact字段
+  // 显示滑块验证
+  showSliderVerify.value = true
+  // 重置滑块位置
+  sliderLeft.value = 0
+  // 延迟更新滑块宽度（确保容器已渲染）
+  setTimeout(() => {
+    if (sliderBox.value) {
+      sliderWidth.value = sliderBox.value.offsetWidth
+    }
+  }, 100)
+}
+
+// 提交评论（验证成功后执行）
+const submitComment = async () => {
+  // 构造请求参数
   const commentData = {
     name: username.value.trim(),
-    contact: contact.value.trim(),  // 新增：传给后端的contact字段
+    contact: contact.value.trim(),
     content: content.value.trim(),
     articleId: 1
   }
@@ -125,10 +250,12 @@ const submitComment = async () => {
     if (res.data.code === 200) {
       alert('留言成功！🎉')
       localStorage.setItem('dragonCommentName', username.value.trim())
-      // 清空联系方式输入框
+      // 清空表单
       contact.value = ''
       content.value = ''
-      // 重新获取评论列表（仍不显示contact）
+      // 隐藏滑块验证
+      showSliderVerify.value = false
+      // 重新获取评论列表
       const listRes = await axios.get('/comment/list', { params: { articleId: 1 } })
       commentList.value = listRes.data.data.map(item => ({
         id: item.id,
@@ -138,10 +265,14 @@ const submitComment = async () => {
       }))
     } else {
       alert('提交失败：' + res.data.msg)
+      // 隐藏滑块验证
+      showSliderVerify.value = false
     }
   } catch (error) {
     console.error('提交评论失败：', error)
     alert('网络异常，留言提交失败～')
+    // 隐藏滑块验证
+    showSliderVerify.value = false
   }
 }
 </script>
@@ -220,7 +351,12 @@ const submitComment = async () => {
   transition: background-color 0.3s ease;
 }
 
-.submit-btn:hover {
+.submit-btn:disabled {
+  background-color: #89a4d4;
+  cursor: not-allowed;
+}
+
+.submit-btn:hover:not(:disabled) {
   background-color: #1f3a6b;
 }
 
@@ -282,7 +418,75 @@ const submitComment = async () => {
   padding: 20px 0;
 }
 
-/* 移动端适配（和主页统一） */
+/* 联系方式提示文字样式 */
+.contact-tip {
+  display: inline-block;
+  margin-top: 5px;
+  font-size: 14px;
+  color: #999;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+}
+
+/* 新增：滑块验证码样式 */
+.slider-verify-wrap {
+  margin: 20px 0;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.slider-verify-title {
+  font-size: 16px;
+  color: #2f5496;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  margin-bottom: 8px;
+}
+
+.slider-verify-box {
+  width: 100%;
+  height: 40px;
+  background-color: #f5f8ff;
+  border: 2px solid #b3d8ff;
+  border-radius: 20px;
+  position: relative;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.slider-verify-bg {
+  position: absolute;
+  top: 0;
+  left: 0;
+  height: 100%;
+  width: v-bind(sliderLeft + btnWidth + 'px');
+  background-color: #d7e8ff;
+  transition: width 0.1s ease;
+  z-index: 1;
+}
+
+.slider-verify-btn {
+  position: absolute;
+  top: 0;
+  left: 0;
+  width: 40px;
+  height: 100%;
+  background-color: #2f5496;
+  border-radius: 20px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 18px;
+  cursor: grab;
+  z-index: 2;
+  transition: left 0.1s ease;
+  user-select: none;
+}
+
+.slider-verify-btn:active {
+  cursor: grabbing;
+}
+
+/* 移动端适配 */
 @media (max-width: 768px) {
   .comment-title {
     font-size: 32px;
@@ -320,21 +524,23 @@ const submitComment = async () => {
   .item-content {
     font-size: 16px;
   }
-}
-/* 新增：联系方式提示文字样式（标注“可选，评论区不显示”） */
-.contact-tip {
-  display: inline-block; /* 独占一行，避免和输入框挤在一起 */
-  margin-top: 5px; /* 和输入框保持小间距 */
-  font-size: 14px; /* 字体比标签小，不抢眼 */
-  color: #999; /* 灰色，提示性文字风格 */
-  font-family: "楷体", "KaiTi", "STKaiti", serif; /* 和整体字体统一 */
-}
 
-/* 移动端适配：同步缩小提示文字（已有媒体查询中补充） */
-@media (max-width: 768px) {
   .contact-tip {
-    font-size: 12px; /* 手机端字体更小，节省空间 */
+    font-size: 12px;
   }
-  /* 其他原有移动端样式不变，只加上面这行 */
+
+  /* 滑块验证码移动端适配 */
+  .slider-verify-title {
+    font-size: 14px;
+  }
+
+  .slider-verify-box {
+    height: 36px;
+  }
+
+  .slider-verify-btn {
+    width: 36px;
+    font-size: 16px;
+  }
 }
 </style>

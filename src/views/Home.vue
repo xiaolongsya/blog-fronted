@@ -8,7 +8,7 @@
       <!-- 个人头像图片：Vue 3 中统一使用脚本内的 router 实例 -->
       <img 
         class="personal-avatar" 
-        src="http://124.221.211.146/uploads/avatar.jpg" 
+        src="https://xiaolongya.cn/uploads/avatar.jpg" 
         alt="个人头像"   
         @click="router.push('/dragon-den')" 
       />
@@ -34,6 +34,13 @@
           <span class="circle-text">{{ item.content }}</span>
         </div>
       </div>
+    </section>
+
+    <!-- 新增：备案信息区域（放在页面底部，合规且不影响原有布局） -->
+    <section class="beian-info-wrap">
+      <a href="https://beian.miit.gov.cn/" target="_blank" class="beian-link">
+        粤ICP备2026012519号-1
+      </a>
     </section>
 
     <!-- 管理员登录弹窗（默认隐藏） -->
@@ -73,11 +80,14 @@
 
 <script setup>
 // Vue 3 中 useRouter 必须从 vue-router 导入
-import { ref } from 'vue'
-import { useRouter } from 'vue-router'
+import { ref, onMounted } from 'vue' // 新增：导入 onMounted 生命周期钩子
+import { useRouter, useRoute } from 'vue-router' // 新增：导入 useRoute 用于获取当前路由
+// 引入 axios 用于发送接口请求
+import axios from 'axios'
 
 // 创建 Vue 3 路由实例
 const router = useRouter()
+const route = useRoute() // 新增：创建路由对象，用于获取当前访问路径
 
 /**
  * 定义圆形项目的列表数据（带路由路径）
@@ -104,6 +114,8 @@ const loginForm = ref({
   username: '',
   password: ''
 })
+// 可选：登录请求加载状态（防止重复点击）
+const isLoginLoading = ref(false)
 
 /**
  * 关闭登录弹窗并重置表单数据
@@ -112,29 +124,74 @@ const closeLoginModal = () => {
   showLoginModal.value = false
   loginForm.value.username = ''
   loginForm.value.password = ''
+  isLoginLoading.value = false // 关闭弹窗时重置加载状态
 }
 
 /**
- * 处理管理员登录逻辑
+ * 新增：页面加载时拦截直接访问 /admin 路由
+ * 作用：用户直接输入 https://xiaolongya.cn/admin 时，强制跳回主页并提示登录
  */
-const handleLogin = () => {
-  const ADMIN_USER = 'xiaolong'
-  const ADMIN_PWD = 'mc8978603'
+onMounted(() => {
+  // 1. 判断当前是否访问的是 /admin 路由
+  if (route.path === '/admin') {
+    // 2. 检查本地是否有登录标识（登录成功时存入的）
+    const isAdminLogin = localStorage.getItem('isAdminLogin')
+    // 3. 无登录标识 = 未通过弹窗登录，强制拦截
+    if (!isAdminLogin) {
+      router.push('/') // 跳回主页
+      alert('请先通过"龙岛的后台"按钮登录，禁止直接访问后台！')
+    }
+  }
+})
 
-  // 验证输入
+/**
+ * 处理管理员登录逻辑（POST 请求 + 标准 JSON 格式传参）
+ */
+const handleLogin = async () => {
+  // 1. 前置输入验证
   if (!loginForm.value.username || !loginForm.value.password) {
     alert('用户名和密码不能为空！')
     return
   }
 
-  // 验证账号密码
-  if (loginForm.value.username === ADMIN_USER && loginForm.value.password === ADMIN_PWD) {
-    alert('登录成功！即将跳转到后台管理页面～')
-    closeLoginModal()
-    // router.push('/admin') // 后续补充后台路由后解开
-  } else {
-    alert('用户名或密码错误！仅管理员可登录～')
-    loginForm.value.password = ''
+  // 2. 防止重复提交
+  if (isLoginLoading.value) return
+  isLoginLoading.value = true
+
+  try {
+    // 3. 发送 POST 登录请求（标准 JSON 格式传参）
+    const response = await axios.post(
+      'https://xiaolongya.cn/blog/user/login',
+      {
+        username: loginForm.value.username,
+        password: loginForm.value.password
+      },
+      {
+        headers: {
+          'Content-Type': 'application/json'
+        }
+      }
+    )
+
+    // 4. 处理接口返回结果（后端成功返回 "登陆成功"）
+    const result = response.data
+    if (result === "登陆成功") {
+      alert('登录成功！即将跳转到后台管理页面～')
+      // 新增：存入登录标识，供页面加载时拦截判断
+      localStorage.setItem('isAdminLogin', 'true')
+      closeLoginModal()
+      router.push('/admin') // 跳转管理员界面
+    } else {
+      alert('用户名或密码错误！仅管理员可登录～')
+      loginForm.value.password = '' // 清空密码框，保护隐私
+    }
+  } catch (error) {
+    // 5. 处理接口请求异常（网络错误、接口报错等）
+    console.error('登录请求失败：', error)
+    alert('登录请求异常，请稍后再试！')
+  } finally {
+    // 6. 无论成功还是失败，都重置加载状态
+    isLoginLoading.value = false
   }
 }
 </script>
@@ -377,6 +434,24 @@ const handleLogin = () => {
   background-color: #e8e8e8;
 }
 
+/* 新增：备案信息样式（合规且美观，与页面风格统一） */
+.beian-info-wrap {
+  text-align: center;
+  margin: 30px 0 20px; /* 上下间距，不拥挤 */
+}
+
+.beian-link {
+  font-size: 12px;
+  color: #666; /* 浅灰色，不突兀 */
+  text-decoration: none; /* 去掉默认下划线，更美观 */
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+}
+
+.beian-link:hover {
+  color: #2f5496; /* 悬浮时变主色调，提升交互体验 */
+  text-decoration: underline; /* 悬浮显示下划线，提示可点击 */
+}
+
 /* 响应式适配：手机端（≤768px） */
 @media (max-width: 768px) {
   .home-page {
@@ -387,7 +462,8 @@ const handleLogin = () => {
   .title-avatar-wrap {
     width: 95%;
     margin: 20px 0;
-    flex-direction: column;
+    flex-direction: column; /* 垂直排列，适配手机端 */
+    gap: 15px; /* 增加内部间距，避免拥挤 */
   }
 
   .blog-main-title {
@@ -400,13 +476,30 @@ const handleLogin = () => {
     width: 60px;
     height: 60px;
     border-width: 3px;
-    position: static;
+    position: static; /* 取消绝对定位，跟随垂直排列 */
     margin: 10px auto 0;
     transform: none;
   }
 
+  /* 关键修改：移除 display: none; 并适配手机端布局 */
   .admin-btn-group {
-    display: none;
+    position: static; /* 取消绝对定位，跟随垂直排列 */
+    transform: none; /* 取消垂直居中偏移 */
+    justify-content: center; /* 水平居中 */
+    margin: 10px 0 0; /* 增加顶部间距，避免和头像重叠 */
+    gap: 8px; /* 适当缩小间距，适配手机屏幕 */
+  }
+
+  /* 手机端控制台按钮适配，缩小尺寸 */
+  .admin-btn {
+    padding: 8px 15px;
+    font-size: 14px;
+    border-radius: 20px;
+  }
+
+  /* 手机端控制台提示文字适配，缩小尺寸 */
+  .admin-tip {
+    font-size: 12px;
   }
 
   .main-content-wrap {
@@ -458,6 +551,15 @@ const handleLogin = () => {
   .modal-login-btn, .modal-close-btn {
     padding: 8px 20px;
     font-size: 16px;
+  }
+
+  /* 新增：手机端备案信息适配 */
+  .beian-info-wrap {
+    margin: 20px 0 15px;
+  }
+
+  .beian-link {
+    font-size: 10px;
   }
 }
 </style>
