@@ -20,12 +20,100 @@
       </div>
     </section>
 
-    <!-- 更新龙岛日志弹窗 -->
+    <!-- 1. 龙的成长记录主弹窗 -->
+    <div class="modal-mask" v-if="showGrowthMainModal" @click="closeGrowthMainModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-title">龙的成长记录</div>
+        <div class="growth-btn-group">
+          <button class="growth-sub-btn" @click="openAddCategoryModal">添加成长分类</button>
+          <button class="growth-sub-btn" @click="openAddNodeModal">添加成长节点</button>
+        </div>
+        <button class="modal-close-btn" @click="closeGrowthMainModal">关闭</button>
+      </div>
+    </div>
+
+    <!-- 2. 添加成长分类弹窗 -->
+    <div class="modal-mask" v-if="showAddCategoryModal" @click="closeAddCategoryModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-title">添加成长分类</div>
+        <div class="modal-form-item">
+          <label>分类名称：</label>
+          <input 
+            v-model="categoryForm.name" 
+            placeholder="请输入分类名称"
+            class="modal-input"
+          />
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn" 
+            @click="submitCategory"
+            :disabled="!categoryForm.name.trim() || isSubmitting"
+          >
+            <span v-if="isSubmitting" class="loading-icon">🔄</span>
+            {{ isSubmitting ? '提交中...' : '提交分类' }}
+          </button>
+          <button class="modal-close-btn" @click="closeAddCategoryModal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 3. 添加成长节点弹窗 -->
+    <div class="modal-mask" v-if="showAddNodeModal" @click="closeAddNodeModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-title">添加成长节点</div>
+        <div class="modal-form-item">
+          <label>分类ID：</label>
+          <input 
+            v-model.number="nodeForm.growthId" 
+            type="number"
+            placeholder="请输入分类ID"
+            class="modal-input"
+          />
+        </div>
+        <div class="modal-form-item">
+          <label>节点内容：</label>
+          <textarea 
+            v-model="nodeForm.content" 
+            placeholder="请输入节点内容"
+            class="modal-textarea"
+            rows="3"
+          ></textarea>
+        </div>
+        <div class="modal-form-item">
+          <label>上传图片（可选）：</label>
+          <input 
+            type="file" 
+            accept="image/jpeg,image/png,image/gif"
+            @change="handleNodeImageUpload"
+            class="modal-file-input"
+          />
+          <div class="upload-preview" v-if="nodeForm.imgUrls.length > 0">
+            <div v-for="(url, idx) in nodeForm.imgUrls" :key="idx" class="preview-item">
+              <img :src="url" alt="预览图" class="preview-img" @error="handleNodeImgError(idx)" />
+              <button @click="removeNodeImage(idx)" class="remove-img-btn">×</button>
+            </div>
+          </div>
+          <p class="upload-tip" v-if="nodeForm.imgUrls.length === 0">暂未上传图片，支持JPG/PNG/GIF格式</p>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn" 
+            @click="submitNode"
+            :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting"
+          >
+            <span v-if="isSubmitting" class="loading-icon">🔄</span>
+            {{ isSubmitting ? '提交中...' : '提交节点' }}
+          </button>
+          <button class="modal-close-btn" @click="closeAddNodeModal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 更新龙岛日志弹窗 -->
     <div class="modal-mask" v-if="showLogModal" @click="closeLogModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">更新龙岛日志</div>
-        
-        <!-- 内容输入 -->
         <div class="modal-form-item">
           <label>日志内容：</label>
           <textarea 
@@ -35,8 +123,6 @@
             rows="5"
           ></textarea>
         </div>
-
-        <!-- 图片上传 -->
         <div class="modal-form-item">
           <label>上传图片：</label>
           <input 
@@ -45,7 +131,6 @@
             @change="handleImageUpload"
             class="modal-file-input"
           />
-          <!-- 已上传图片预览 -->
           <div class="upload-preview" v-if="logForm.imgUrls.length > 0">
             <div v-for="(url, idx) in logForm.imgUrls" :key="idx" class="preview-item">
               <img :src="url" alt="预览图" class="preview-img" @error="handleImgError(idx)" />
@@ -54,8 +139,6 @@
           </div>
           <p class="upload-tip" v-if="logForm.imgUrls.length === 0">暂未上传图片，支持JPG/PNG/GIF格式</p>
         </div>
-
-        <!-- 提交/关闭按钮 -->
         <div class="modal-btn-group">
           <button 
             class="modal-submit-btn" 
@@ -85,13 +168,17 @@ const circleList = [
   { content: "暂无", type: "none" }
 ];
 
-// 日志弹窗相关
+// 状态管理：弹窗显示控制
 const showLogModal = ref(false)
-const logForm = ref({
-  content: '',
-  imgUrls: [] // 存储图片URL的纯字符串数组
-})
+const showGrowthMainModal = ref(false)
+const showAddCategoryModal = ref(false)
+const showAddNodeModal = ref(false)
 const isSubmitting = ref(false)
+
+// 表单数据
+const logForm = ref({ content: '', imgUrls: [] })
+const categoryForm = ref({ name: '' })
+const nodeForm = ref({ growthId: null, content: '', imgUrls: [] })
 
 /**
  * 处理圆圈按钮点击
@@ -100,142 +187,169 @@ const handleCircleClick = (item) => {
   if (item.type === "log") {
     showLogModal.value = true
   } else if (item.type === "growth") {
-    alert("龙的成长记录功能待开发～")
+    showGrowthMainModal.value = true
   }
 }
 
 /**
- * 关闭日志弹窗并重置表单
+ * 龙的成长记录主弹窗 - 打开子弹窗
  */
+const openAddCategoryModal = () => {
+  showGrowthMainModal.value = false
+  showAddCategoryModal.value = true
+}
+const openAddNodeModal = () => {
+  showGrowthMainModal.value = false
+  showAddNodeModal.value = true
+}
+
+/**
+ * 弹窗关闭逻辑
+ */
+const closeGrowthMainModal = () => {
+  showGrowthMainModal.value = false
+}
+const closeAddCategoryModal = () => {
+  showAddCategoryModal.value = false
+  categoryForm.value = { name: '' }
+}
+const closeAddNodeModal = () => {
+  showAddNodeModal.value = false
+  nodeForm.value = { growthId: null, content: '', imgUrls: [] }
+}
 const closeLogModal = () => {
   showLogModal.value = false
-  // 重置表单数据
-  logForm.value = {
-    content: '',
-    imgUrls: []
-  }
-  isSubmitting.value = false
+  logForm.value = { content: '', imgUrls: [] }
 }
 
 /**
- * 处理图片上传
- * @param {Event} e - 文件选择事件
+ * 图片上传通用方法（复用）
+ */
+const uploadImage = async (file) => {
+  const validTypes = ['image/jpeg', 'image/png', 'image/gif']
+  if (!validTypes.includes(file.type)) {
+    alert('请上传合法的图片格式（JPG/PNG/GIF）')
+    return null
+  }
+  const formData = new FormData()
+  formData.append('file', file)
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.data.code === 200) {
+      return res.data.data.trim()
+    }
+    throw new Error(res.data.msg || '图片上传失败')
+  } catch (err) {
+    alert(`图片上传失败：${err.message}`)
+    return null
+  }
+}
+
+/**
+ * 龙岛日志 - 图片上传
  */
 const handleImageUpload = async (e) => {
   const file = e.target.files[0]
   if (!file) return
-
-  const validTypes = ['image/jpeg', 'image/png', 'image/gif']
-  if (!validTypes.includes(file.type)) {
-    alert('请上传合法的图片格式（JPG/PNG/GIF）')
-    return
+  const imgUrl = await uploadImage(file)
+  if (imgUrl) {
+    logForm.value.imgUrls.push(imgUrl)
   }
-
-  const formData = new FormData()
-  formData.append('file', file)
-
-  try {
-    const res = await axios.post(
-      'https://xiaolongya.cn/blog/upload/image',
-      formData,
-      {
-        // 注意：后端返回的是JSON格式（包含code、msg、data），不是纯文本，所以要去掉responseType: 'text'
-        // （这是之前的关键错误！后端返回的是JSON对象，不是纯字符串）
-        // responseType: 'text',
-        onUploadProgress: (progressEvent) => {
-          const progress = Math.round((progressEvent.loaded / progressEvent.total) * 100)
-          console.log(`图片上传进度：${progress}%`)
-        }
-      }
-    )
-
-    // ---------------------- 修正：直接取后端返回的data字段（完整URL） ----------------------
-    // 后端返回的是JSON对象：{ "code": 200, "msg": "成功", "data": "http://xxx/xxx.png" }
-    const validImgUrl = res.data.data.trim() // 从data中提取URL
-    // ---------------------- 结束修正 ----------------------
-
-    if (validImgUrl && validImgUrl.startsWith('http')) {
-      logForm.value.imgUrls.push(validImgUrl)
-      alert('图片上传成功！')
-    } else {
-      throw new Error('返回的URL格式不合法，未包含http协议')
-    }
-
-    e.target.value = ''
-  } catch (err) {
-    console.error('图片上传失败：', err)
-    const errorMsg = err.response?.data?.msg || err.message || '未知上传错误'
-    alert(`图片上传失败：${errorMsg}`)
-  }
+  e.target.value = ''
 }
-
-/**
- * 移除已上传的图片
- * @param {Number} idx - 图片在数组中的索引
- */
-const removeImage = (idx) => {
-  if (idx >= 0 && idx < logForm.value.imgUrls.length) {
-    logForm.value.imgUrls.splice(idx, 1)
-  }
-}
-
-/**
- * 处理图片预览加载失败
- * @param {Number} idx - 图片在数组中的索引
- */
+const removeImage = (idx) => logForm.value.imgUrls.splice(idx, 1)
 const handleImgError = (idx) => {
-  console.warn(`第${idx+1}张图片预览失败，已自动移除`)
-  removeImage(idx)
   alert(`第${idx+1}张图片无效，已自动移除`)
+  removeImage(idx)
 }
 
 /**
- * 提交日志到后端
+ * 成长节点 - 图片上传
  */
-const submitLog = async () => {
-  // 1. 前置校验
-  const content = logForm.value.content.trim()
-  if (!content) {
-    alert('日志内容不能为空，请填写后提交！')
-    return
+const handleNodeImageUpload = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const imgUrl = await uploadImage(file)
+  if (imgUrl) {
+    nodeForm.value.imgUrls.push(imgUrl)
   }
+  e.target.value = ''
+}
+const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
+const handleNodeImgError = (idx) => {
+  alert(`第${idx+1}张图片无效，已自动移除`)
+  removeNodeImage(idx)
+}
 
-  // 2. 处理图片URL数组，确保是纯字符串数组（兜底过滤）
-  const validImgUrls = logForm.value.imgUrls
-    .filter(url => {
-      const pureUrl = (url || '').trim()
-      return pureUrl && pureUrl.startsWith('http')
-    })
-    .map(url => url.trim())
-
-  // 3. 开始提交
+/**
+ * 提交成长分类
+ */
+const submitCategory = async () => {
+  const name = categoryForm.value.name.trim()
+  if (!name) return
   isSubmitting.value = true
   try {
-    const response = await axios.post(
-      'https://xiaolongya.cn/blog/development/upload',
-      {
-        content: content,
-        imgUrls: validImgUrls
-      },
-      {
-        // 自动设置正确的Content-Type，无需手动配置
-        headers: {
-          'Accept': 'application/json'
-        }
-      }
-    )
-
-    // 4. 提交成功处理
-    console.log('日志提交成功：', response.data)
-    alert('龙岛日志更新成功！')
-    closeLogModal()
+    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', { name })
+    if (res.data.code === 200) {
+      alert('成长分类添加成功！')
+      closeAddCategoryModal()
+    } else {
+      throw new Error(res.data.msg || '分类添加失败')
+    }
   } catch (err) {
-    // 5. 提交失败处理
-    console.error('日志提交失败：', err)
-    const errorDetail = err.response?.data || '后端服务暂不可用'
-    alert(`日志提交失败：${JSON.stringify(errorDetail).substring(0, 200)}`)
+    alert(`分类添加失败：${err.message}`)
   } finally {
-    // 6. 无论成败，结束提交状态
+    isSubmitting.value = false
+  }
+}
+
+/**
+ * 提交成长节点
+ */
+const submitNode = async () => {
+  const { growthId, content, imgUrls } = nodeForm.value
+  if (!growthId || !content.trim()) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/node/upload', {
+      growthId,
+      content: content.trim(),
+      imgUrls
+    })
+    if (res.data.code === 200) {
+      alert('成长节点添加成功！')
+      closeAddNodeModal()
+    } else {
+      throw new Error(res.data.msg || '节点添加失败')
+    }
+  } catch (err) {
+    alert(`节点添加失败：${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+/**
+ * 提交龙岛日志
+ */
+const submitLog = async () => {
+  const content = logForm.value.content.trim()
+  if (!content) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/development/upload', {
+      content,
+      imgUrls: logForm.value.imgUrls
+    })
+    if (res.data.code === 200) {
+      alert('龙岛日志更新成功！')
+      closeLogModal()
+    } else {
+      throw new Error(res.data.msg || '日志提交失败')
+    }
+  } catch (err) {
+    alert(`日志提交失败：${err.message}`)
+  } finally {
     isSubmitting.value = false
   }
 }
@@ -257,9 +371,9 @@ const submitLog = async () => {
   margin-bottom: 60px;
 }
 .admin-title {
-  font-size: 60px;
+  font-size: 100px;
   font-weight: 900;
-  color: #2f5496;
+  color: #00c0e2;
   font-family: "Ma Shan Zheng", "楷体", "STKaiti", cursive;
   letter-spacing: 10px;
   margin: 0;
@@ -275,7 +389,7 @@ const submitLog = async () => {
   align-items: center;
   padding: 60px 20px;
   box-sizing: border-box;
-  flex-wrap: wrap; /* 适配小屏幕自动换行 */
+  flex-wrap: wrap;
   gap: 40px;
   margin-bottom: 40px;
 }
@@ -309,7 +423,7 @@ const submitLog = async () => {
   background-color: #f8fbff;
 }
 .circle-text {
-  font-size: 24px;
+  font-size: 25px;
   font-weight: 700;
   color: #2f5496;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
@@ -366,6 +480,22 @@ const submitLog = async () => {
   color: #333;
   margin-bottom: 8px;
   font-weight: 500;
+}
+
+/* 输入框 */
+.modal-input {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease;
+}
+.modal-input:focus {
+  border-color: #2f5496;
+  box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
 }
 
 /* 文本域 */
@@ -452,6 +582,25 @@ const submitLog = async () => {
   gap: 20px;
   margin-top: 15px;
 }
+.growth-btn-group {
+  display: flex;
+  flex-direction: column;
+  gap: 15px;
+  margin-bottom: 20px;
+}
+.growth-sub-btn {
+  padding: 12px 0;
+  background-color: #2f5496;
+  color: #fff;
+  border: none;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: background-color 0.3s ease;
+}
+.growth-sub-btn:hover {
+  background-color: #3a66b8;
+}
 .modal-submit-btn {
   padding: 10px 30px;
   background-color: #2f5496;
@@ -468,7 +617,6 @@ const submitLog = async () => {
 .modal-submit-btn:disabled {
   background-color: #b3d8ff;
   cursor: not-allowed;
-  transform: none;
 }
 .modal-submit-btn:not(:disabled):hover {
   background-color: #3a66b8;
@@ -497,48 +645,21 @@ const submitLog = async () => {
   animation: rotate 1.5s linear infinite;
 }
 @keyframes rotate {
-  from {
-    transform: rotate(0deg);
-  }
-  to {
-    transform: rotate(360deg);
-  }
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* 响应式适配 */
 @media (max-width: 768px) {
-  .admin-title {
-    font-size: 36px;
-  }
-  .admin-main-content {
-    border-radius: 40px;
-    padding: 30px 10px;
-    gap: 20px;
-  }
-  .circle-item {
-    width: 120px;
-    height: 120px;
-  }
-  .circle-bg {
-    width: 120px;
-    height: 120px;
-  }
-  .circle-text {
-    font-size: 18px;
-  }
-  .modal-container {
-    padding: 20px;
-  }
-  .modal-title {
-    font-size: 20px;
-    margin-bottom: 20px;
-  }
-  .modal-btn-group {
-    gap: 15px;
-  }
-  .modal-submit-btn, .modal-close-btn {
-    padding: 8px 20px;
-    font-size: 16px;
-  }
+  .admin-title { font-size: 36px; }
+  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; }
+  .circle-item { width: 120px; height: 120px; }
+  .circle-bg { width: 120px; height: 120px; }
+  .circle-text { font-size: 18px; }
+  .modal-container { padding: 20px; }
+  .modal-title { font-size: 20px; margin-bottom: 20px; }
+  .modal-btn-group { gap: 15px; }
+  .modal-submit-btn, .modal-close-btn { padding: 8px 20px; font-size: 16px; }
+  .growth-sub-btn { font-size: 16px; }
 }
 </style>

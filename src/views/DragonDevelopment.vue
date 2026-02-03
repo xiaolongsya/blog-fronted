@@ -75,20 +75,39 @@ const translatePos = ref({ x: 0, y: 0 }) // 图片偏移位置
 const fetchUpdateList = async () => {
   try {
     const res = await fetch('https://xiaolongya.cn/blog/development/list')
-    if (!res.ok) throw new Error('网络请求失败')
-    const data = await res.json()
+    // 1. 强化HTTP网络错误判断，携带状态码
+    if (!res.ok) throw new Error(`网络请求失败，HTTP状态码：${res.status}`)
     
-    if (data.code === 200 || !data.code) {
-      updateList.value = (data.data || []).map(item => ({
+    const result = await res.json() // 重命名为result，更清晰表示是封装对象
+    // 2. 严谨判断Result响应成功（优先判断code=200，兼容未封装的旧数据）
+    if (result.code === 200) {
+      // 3. 提取核心数据，添加容错默认值（避免data为null）
+      const originalList = result.data || []
+      updateList.value = originalList.map(item => ({
         time: item.createTime ? item.createTime.split(' ')[0] : '',
         content: item.content || '',
         images: Array.isArray(item.imgUrls) 
           ? item.imgUrls 
           : (item.imgUrls ? item.imgUrls.split(',') : [])
       }))
+    } else if (!result.code) {
+      // 兼容后端未做Result封装的旧数据（直接使用返回结果）
+      const originalList = result || []
+      updateList.value = originalList.map(item => ({
+        time: item.createTime ? item.createTime.split(' ')[0] : '',
+        content: item.content || '',
+        images: Array.isArray(item.imgUrls) 
+          ? item.imgUrls 
+          : (item.imgUrls ? item.imgUrls.split(',') : [])
+      }))
+    } else {
+      // 4. 捕获后端返回的业务错误，打印并提示
+      throw new Error(`获取更新记录失败：${result.msg || '未知业务错误'}`)
     }
   } catch (err) {
     console.error('获取更新记录失败：', err)
+    // 可选：添加前端页面提示，让用户感知错误
+    // alert(err.message)
   }
 }
 

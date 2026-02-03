@@ -86,27 +86,44 @@ onMounted(async () => {
   await loadNodes(categoryId)
 })
 
-// 加载分类信息
+// 加载分类信息（适配Result封装）
 const loadCategoryData = async (categoryId) => {
   try {
     const res = await fetch(`https://xiaolongya.cn/blog/growth/${categoryId}`)
-    if (!res.ok) throw new Error('加载分类失败')
-    const data = await res.json()
-    category.value = data
+    if (!res.ok) throw new Error('加载分类失败，HTTP状态码：' + res.status)
+    
+    const result = await res.json() // 先获取完整的Result对象
+    // 1. 验证接口响应是否成功（默认code=200为成功，可根据后端调整）
+    if (result.code !== 200) {
+      throw new Error('加载分类失败：' + (result.msg || '未知错误'))
+    }
+    // 2. 提取Result中的核心数据data，赋值给category
+    category.value = result.data || null
   } catch (error) {
     console.error('加载分类信息失败:', error)
   }
 }
 
-// 加载节点列表（适配你提供的接口格式）
+// 加载节点列表（适配Result封装，修复imgUrls数组处理问题）
 const loadNodes = async (categoryId) => {
   try {
     const res = await fetch(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`)
-    if (!res.ok) throw new Error('加载节点失败')
-    const data = await res.json()
-    nodes.value = data.map(item => ({
+    if (!res.ok) throw new Error('加载节点失败，HTTP状态码：' + res.status)
+    
+    const result = await res.json() // 先获取完整的Result对象
+    // 1. 验证接口响应是否成功
+    if (result.code !== 200) {
+      throw new Error('加载节点失败：' + (result.msg || '未知错误'))
+    }
+    // 2. 提取Result中的核心数据data（节点数组）
+    const originalNodes = result.data || []
+    
+    // 3. 修复关键问题：imgUrls已经是数组，无需split，直接复用
+    // 移除多余的split(',')，保留容错处理即可
+    nodes.value = originalNodes.map(item => ({
       ...item,
-      imgUrls: item.imgUrls ? item.imgUrls.split(',') : []
+      // 直接使用item.imgUrls，默认值设为空数组（避免null/undefined）
+      imgUrls: item.imgUrls || []
     }))
   } catch (error) {
     console.error('加载节点失败:', error)

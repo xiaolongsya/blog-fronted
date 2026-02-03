@@ -102,4 +102,53 @@ h1 {
 .tool-link:hover {
   background: #1f3a6b;
 }
+
+/* 新增：手机端适配（屏幕宽度 ≤ 768px） */
+@media (max-width: 768px) {
+  .dragon-tools {
+    /* 减少手机端页面内边距，避免内容太靠边 */
+    padding: 20px 15px;
+  }
+
+  h1 {
+    /* 大幅缩小手机端标题字体，避免超出屏幕 */
+    font-size: 3rem; /* 约 48px，可根据需求调整 */
+    margin-bottom: 25px;
+  }
+
+  .tools-grid {
+    /* 手机端改为单列布局，卡片全屏显示，更易阅读 */
+    grid-template-columns: 1fr;
+    /* 减少卡片之间的间距 */
+    gap: 20px;
+  }
+
+  .tool-card {
+    /* 减少手机端卡片内边距，节省屏幕空间 */
+    padding: 20px 15px;
+  }
+
+  .tool-card h3 {
+    /* 缩小卡片标题字体 */
+    font-size: 20px;
+  }
+
+  .tool-card p {
+    /* 缩小卡片描述字体，调整行高提升可读性 */
+    font-size: 14px;
+    line-height: 1.6;
+  }
+
+  .tool-link {
+    /* 微调按钮内边距，适配手机端点击区域 */
+    padding: 6px 12px;
+    font-size: 14px;
+  }
+
+  .tool-icon {
+    /* 适当缩小图标，保持比例协调 */
+    width: 40px;
+    height: 40px;
+  }
+}
 </style>

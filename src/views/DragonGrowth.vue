@@ -55,14 +55,22 @@ const loading = ref(true)
  * 获取分类列表数据
  * 从指定API获取分类信息，并处理异常情况
  */
+
 const fetchCategories = async () => {
   try {
     const res = await fetch('https://xiaolongya.cn/blog/growth/list')
     if (!res.ok) throw new Error('网络请求失败，HTTP 状态码：' + res.status)
     
-    const data = await res.json()
-    // 将原始数据映射为标准化格式，并按创建时间排序
-    categories.value = (data || []).map(category => ({
+    const result = await res.json() // 先获取完整的Result封装对象
+    // 步骤1：判断Result响应是否成功（根据后端定义的成功码，通常是200）
+    if (result.code !== 200) {
+      throw new Error('接口返回失败：' + (result.msg || '未知错误'))
+    }
+    // 步骤2：提取Result中的data字段（这才是原来的分类数组）
+    const originalCategoryList = result.data || []
+    
+    // 步骤3：后续映射逻辑不变，基于提取出的originalCategoryList处理
+    categories.value = originalCategoryList.map(category => ({
       id: category.id || '',
       name: category.name || '未命名分类',
       nodeCount: category.nodeCount || 0,
