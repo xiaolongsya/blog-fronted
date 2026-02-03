@@ -265,7 +265,7 @@ const handleLogin = async () => {
   width: 260px;
   height: 260px;
   border-radius: 50%;
-  background-color: #ffffff;
+  background-color: #00c0e2;
   display: flex;
   justify-content: center;
   align-items: center;

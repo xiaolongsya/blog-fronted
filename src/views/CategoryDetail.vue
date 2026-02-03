@@ -104,32 +104,34 @@ const loadCategoryData = async (categoryId) => {
   }
 }
 
-// 加载节点列表（适配Result封装，修复imgUrls数组处理问题）
 const loadNodes = async (categoryId) => {
   try {
-    const res = await fetch(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`)
-    if (!res.ok) throw new Error('加载节点失败，HTTP状态码：' + res.status)
+    const res = await fetch(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`);
+    if (!res.ok) throw new Error('加载节点失败，HTTP状态码：' + res.status);
     
-    const result = await res.json() // 先获取完整的Result对象
-    // 1. 验证接口响应是否成功
+    const result = await res.json();
     if (result.code !== 200) {
-      throw new Error('加载节点失败：' + (result.msg || '未知错误'))
+      throw new Error('加载节点失败：' + (result.msg || '未知错误'));
     }
-    // 2. 提取Result中的核心数据data（节点数组）
-    const originalNodes = result.data || []
+    let originalNodes = result.data || [];
     
-    // 3. 修复关键问题：imgUrls已经是数组，无需split，直接复用
-    // 移除多余的split(',')，保留容错处理即可
+    // 修复：兼容字符串时间的倒序排序
+    originalNodes = originalNodes.sort((a, b) => {
+      if (!a.createTime) return 1;
+      if (!b.createTime) return -1;
+      const timeA = new Date(a.createTime).getTime();
+      const timeB = new Date(b.createTime).getTime();
+      return timeA - timeB; // 倒序（新时间在前）
+    });
+    
     nodes.value = originalNodes.map(item => ({
       ...item,
-      // 直接使用item.imgUrls，默认值设为空数组（避免null/undefined）
       imgUrls: item.imgUrls || []
-    }))
+    }));
   } catch (error) {
-    console.error('加载节点失败:', error)
+    console.error('加载节点失败:', error);
   }
-}
-
+};
 // 格式化时间
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
@@ -230,13 +232,13 @@ const closeBigImage = () => {
 }
 
 .back-btn {
-  background: #6c757d;
+  background: rgb(102, 139, 197);
   color: white;
   border: none;
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1.1rem; /* 按钮文字加大 */
+  font-size: 1.4rem; /* 按钮文字加大 */
 }
 
 .back-btn:hover {
@@ -249,8 +251,8 @@ const closeBigImage = () => {
 }
 
 .category-title {
-  font-size: 2.8rem; /* 标题字体加大 */
-  color: #2f5496;
+  font-size: 4rem; /* 标题字体加大 */
+  color: #00c0e2;
   margin: 0;
   font-weight: bold;
 }
@@ -263,11 +265,11 @@ const closeBigImage = () => {
 
 /* 核心修改：节点卡片统一长方形 */
 .node-card {
-  background: white;
+  background: rgb(102, 139, 197);
   border-radius: 8px;
   padding: 20px;
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
-  border: 1px solid #e8e8e8;
+  border: 1px solid #033ab1;
   width: 100%;
   /* 固定卡片高度，保证所有节点大小一致 */
   height: 360px; /* 卡片高度加大 */

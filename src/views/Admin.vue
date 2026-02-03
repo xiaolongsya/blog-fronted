@@ -32,7 +32,7 @@
       </div>
     </div>
 
-    <!-- 2. 添加成长分类弹窗 -->
+    <!-- 2. 添加成长分类弹窗 - 新增类型选择下拉框 -->
     <div class="modal-mask" v-if="showAddCategoryModal" @click="closeAddCategoryModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">添加成长分类</div>
@@ -44,11 +44,21 @@
             class="modal-input"
           />
         </div>
+        <!-- 关键新增：类型选择下拉框 -->
+        <div class="modal-form-item">
+          <label>类型选择：</label>
+          <select v-model="categoryForm.type" class="modal-select" required>
+            <option value="" disabled>请选择分类类型</option>
+            <option value="前端">前端</option>
+            <option value="后端">后端</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
         <div class="modal-btn-group">
           <button 
             class="modal-submit-btn" 
             @click="submitCategory"
-            :disabled="!categoryForm.name.trim() || isSubmitting"
+            :disabled="!categoryForm.name.trim() || !categoryForm.type || isSubmitting"
           >
             <span v-if="isSubmitting" class="loading-icon">🔄</span>
             {{ isSubmitting ? '提交中...' : '提交分类' }}
@@ -175,9 +185,12 @@ const showAddCategoryModal = ref(false)
 const showAddNodeModal = ref(false)
 const isSubmitting = ref(false)
 
-// 表单数据
+// 表单数据 - 关键修改：categoryForm 新增 type 字段
 const logForm = ref({ content: '', imgUrls: [] })
-const categoryForm = ref({ name: '' })
+const categoryForm = ref({ 
+  name: '', 
+  type: '' // 新增：存储分类类型（前端/后端/其他）
+})
 const nodeForm = ref({ growthId: null, content: '', imgUrls: [] })
 
 /**
@@ -204,14 +217,15 @@ const openAddNodeModal = () => {
 }
 
 /**
- * 弹窗关闭逻辑
+ * 弹窗关闭逻辑 - 关键修改：重置 categoryForm 的 type 字段
  */
 const closeGrowthMainModal = () => {
   showGrowthMainModal.value = false
 }
 const closeAddCategoryModal = () => {
   showAddCategoryModal.value = false
-  categoryForm.value = { name: '' }
+  // 重置表单，包括新增的 type 字段
+  categoryForm.value = { name: '', type: '' }
 }
 const closeAddNodeModal = () => {
   showAddNodeModal.value = false
@@ -282,14 +296,18 @@ const handleNodeImgError = (idx) => {
 }
 
 /**
- * 提交成长分类
+ * 提交成长分类 - 关键修改：上传数据新增 type 参数
  */
 const submitCategory = async () => {
-  const name = categoryForm.value.name.trim()
-  if (!name) return
+  const { name, type } = categoryForm.value
+  // 校验：新增 type 字段非空校验
+  if (!name.trim() || !type) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', { name })
+    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', {
+      name,
+      type // 新增：将分类类型一同上传
+    })
     if (res.data.code === 200) {
       alert('成长分类添加成功！')
       closeAddCategoryModal()
@@ -498,6 +516,28 @@ const submitLog = async () => {
   box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
 }
 
+/* 关键新增：下拉选择框样式 */
+.modal-select {
+  width: 100%;
+  padding: 12px 15px;
+  border: 1px solid #b3d8ff;
+  border-radius: 8px;
+  font-size: 16px;
+  outline: none;
+  box-sizing: border-box;
+  transition: border-color 0.3s ease;
+  background-color: #fff;
+  cursor: pointer;
+}
+.modal-select:focus {
+  border-color: #2f5496;
+  box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
+}
+.modal-select option {
+  font-size: 16px;
+  padding: 10px 0;
+}
+
 /* 文本域 */
 .modal-textarea {
   width: 100%;
@@ -649,7 +689,7 @@ const submitLog = async () => {
   to { transform: rotate(360deg); }
 }
 
-/* 响应式适配 */
+/* 响应式适配 - 关键新增：下拉框移动端适配 */
 @media (max-width: 768px) {
   .admin-title { font-size: 36px; }
   .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; }
@@ -661,5 +701,7 @@ const submitLog = async () => {
   .modal-btn-group { gap: 15px; }
   .modal-submit-btn, .modal-close-btn { padding: 8px 20px; font-size: 16px; }
   .growth-sub-btn { font-size: 16px; }
+  /* 下拉框移动端适配 */
+  .modal-select { padding: 10px 12px; font-size: 14px; }
 }
 </style>
