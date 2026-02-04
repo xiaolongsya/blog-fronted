@@ -78,6 +78,12 @@
           <span class="item-time">{{ formatTime(item.time) }}</span> <!-- 新增：时间格式化优化 -->
         </div>
         <div class="item-content">{{ item.content }}</div>
+        
+        <!-- 优化：安全判断reply是否为有效内容（兼容null、空字符串） -->
+        <div class="item-reply" v-if="getIsValidReply(item.reply)">
+          <span class="reply-author">小龙回复：</span>
+          <span class="reply-content">{{ item.reply }}</span>
+        </div>
       </div>
       <!-- 空评论提示 -->
       <div class="empty-tip" v-if="commentList.length === 0">
@@ -170,6 +176,12 @@ const formatTime = (timeStr) => {
   }
 }
 
+// 新增：安全判断reply是否为有效内容（兼容null、undefined、空字符串）
+const getIsValidReply = (reply) => {
+  // 步骤：1. 排除null/undefined 2. 转为字符串 3. 去除首尾空格 4. 判断是否非空
+  return !!((reply ?? '').toString().trim())
+}
+
 // 页面加载逻辑
 onMounted(async () => {
   const savedName = localStorage.getItem('dragonCommentName')
@@ -191,7 +203,8 @@ onMounted(async () => {
         id: item.id,
         username: item.name,
         content: item.content,
-        time: item.createTime
+        time: item.createTime,
+        reply: item.reply ?? '' // 优化：使用空值合并运算符，将null转为空字符串，避免后续报错
       }))
     } else {
       alert('获取评论失败：' + res.data.msg)
@@ -398,7 +411,8 @@ const submitComment = async () => {
           id: item.id,
           username: item.name,
           content: item.content,
-          time: item.createTime
+          time: item.createTime,
+          reply: item.reply ?? '' // 优化：同样将null转为空字符串
         }))
       }
     } else {
@@ -576,6 +590,29 @@ const submitComment = async () => {
   color: #333;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   line-height: 1.6;
+  margin-bottom: 12px; /* 新增：和回复区域拉开间距 */
+}
+
+/* 新增：小龙回复区域样式 */
+.item-reply {
+  background-color: #f0f0f0; /* 浅灰色背景，凸显回复 */
+  padding: 12px 16px;
+  border-radius: 8px;
+  font-size: 16px;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  line-height: 1.5;
+  /* 增加显隐性，确保有效回复一眼可见 */
+  border-left: 3px solid #2f5496;
+}
+
+.reply-author {
+  font-weight: bold;
+  color: #2f5496;
+  margin-right: 8px;
+}
+
+.reply-content {
+  color: #555;
 }
 
 .empty-tip {
@@ -767,6 +804,14 @@ const submitComment = async () => {
 
   .item-content {
     font-size: 16px;
+    margin-bottom: 10px; /* 移动端同步调整和回复的间距 */
+  }
+
+  /* 新增：移动端回复区域样式适配 */
+  .item-reply {
+    padding: 10px 14px;
+    font-size: 14px;
+    border-left: 2px solid #2f5496;
   }
 
   .contact-tip {
