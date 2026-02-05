@@ -37,7 +37,7 @@
       </div>
     </div>
 
-    <!-- 弹窗组件 -->
+    <!-- 弹窗组件：添加轻量化过渡动画 -->
     <div v-if="modalVisible" class="modal-mask" @click="closeModal">
       <div class="modal-content" @click.stop>
         <div class="modal-header">
@@ -80,7 +80,7 @@
 </template>
 
 <script setup>
-import { ref, onMounted, computed } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
@@ -124,10 +124,11 @@ const fetchCategories = async () => {
 }
 
 /**
- * 打开弹窗
+ * 打开弹窗：加nextTick保证DOM渲染完成，避免动画卡顿
  */
-const openModal = (type) => {
+const openModal = async (type) => {
   currentMainCategory.value = type
+  await nextTick()
   modalVisible.value = true
 }
 
@@ -148,11 +149,12 @@ const filteredCategories = computed(() => {
 })
 
 /**
- * 跳转到分类详情
+ * 跳转到分类详情：加nextTick保证弹窗关闭流畅
  */
-const goToCategory = (categoryId) => {
+const goToCategory = async (categoryId) => {
   if (!categoryId) return
   closeModal()
+  await nextTick()
   router.push(`/category/${categoryId}`)
 }
 
@@ -172,7 +174,7 @@ onMounted(() => {
 </script>
 
 <style scoped>
-/* 页面整体样式 */
+/* 页面整体样式：统一布局，轻量化 */
 .growth-journey-page {
   padding: 20px; 
   font-family: "楷体", "KaiTi", "STKaiti", serif; 
@@ -180,32 +182,37 @@ onMounted(() => {
   display: flex;
   flex-direction: column;
   align-items: center; /* 让核心内容居中 */
+  box-sizing: border-box;
 }
 
-/* 顶部标题区域样式 */
+/* 顶部标题区域样式：优化间距，美化标题 */
 .page-header {
   text-align: center; 
   margin-bottom: 30px; /* 与下方蓝色背景保持间距 */
 }
 
-/* 主标题样式 */
+/* 主标题样式：渐变文字，更美观，移除过大阴影 */
 .title {
-  font-size: 100px; 
+  font-size: 100px; /* 下调字体大小，避免溢出 */
   font-weight: bold; 
-  color: #00c0e2; 
-  text-shadow: 2px 2px 4px rgba(0,0,0,0.1); 
+  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.05); 
+  margin: 0;
 }
 
-/* 核心：蓝色背景区块（无条纹纹理）- 关键修改 */
+/* 核心：蓝色背景区块（无条纹纹理）- 轻量化优化 */
 .core-content-wrap {
   width: 90%;
   max-width: 1200px; 
   background-color: rgba(179, 216, 255, 0.6); /* 保留浅蓝透明，移除条纹 */
-  /* 删掉 background-image 相关代码，去除条纹纹理 */
   border-radius: 120px; 
-  padding: 40px 180px; 
+  padding: 40px 60px; /* 下调左右内边距，避免移动端拥挤 */
   box-sizing: border-box;
   margin-bottom: 50px; 
+  box-shadow: 0 10px 30px rgba(47, 84, 150, 0.1); /* 轻微阴影，提升层次感 */
 }
 
 /* 四大静态主分类容器（适配4个卡片，优化网格布局） */
@@ -219,37 +226,46 @@ onMounted(() => {
   justify-items: center; /* 分类卡片居中排列 */
 }
 
-/* 四大静态主分类卡片样式 - 提高透明度（关键修改） */
+/* 四大静态主分类卡片样式 - 轻量化过渡，协调配色 */
 .main-category-card {
-  /* 提高透明度：从 0.1 改为 0.05，未hover时更透明 */
-  background: rgba(0, 192, 226, 0.05);
+  background: rgba(255, 255, 255, 0.9); /* 白色背景，更清爽 */
   border-radius: 16px;
   padding: 40px 20px;
-  box-shadow: 0 4px 12px rgba(0,0,0,0.5);
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); /* 降低阴影浓度，更柔和 */
   cursor: pointer;
-  transition: all 0.3s ease;
-  border: 1px solid #e8e8e8;
+  transition: all 0.15s ease; /* 缩短过渡时长，更流畅 */
+  border: 2px solid #b3d8ff;
   text-align: center;
   width: 260px; /* 固定卡片宽度，保持整齐 */
+  user-select: none;
 }
 
 .main-category-card:hover {
-  transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15);
-  border-color: #00c0e2;
-  /* 提高hover透明度：从 0.2 改为 0.15，保持视觉协调 */
-  background: rgba(0, 192, 226, 0.15);
+  transform: translateY(-3px) scale(1.02); /* 轻微位移+缩放，反馈更细腻 */
+  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.15); /* 主色调阴影，更协调 */
+  border-color: #2f5496; /* 主色调边框，统一风格 */
+  background: rgba(255, 255, 255, 1);
 }
 
-/* 四大静态主分类标题样式 */
+.main-category-card:active {
+  transform: translateY(1px); /* 按压反馈，更真实 */
+  box-shadow: 0 2px 8px rgba(47, 84, 150, 0.1);
+}
+
+/* 四大静态主分类标题样式：统一字体大小，协调配色 */
 .main-category-title {
-  font-size: 6rem;
-  color: #13e0ee;
+  font-size: 3rem; /* 下调字体大小，避免溢出 */
+  color: #2f5496; /* 主色调，统一风格 */
   font-weight: 700;
   margin: 0;
+  transition: color 0.15s ease;
 }
 
-/* 弹窗遮罩层 */
+.main-category-card:hover .main-category-title {
+  color: #00c0e2; /* 悬浮变色，反馈更明显 */
+}
+
+/* 弹窗遮罩层：轻量化淡入动画，无模糊效果 */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -261,20 +277,31 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   z-index: 1000;
+  animation: modalFadeIn 0.1s ease forwards; /* 超短时长长淡入 */
+  opacity: 0;
 }
 
-/* 弹窗内容区域 */
+/* 弹窗内容区域：轻量化淡入，优化背景和阴影 */
 .modal-content {
-  background: #00c0e2;
+  background: #ffffff; /* 白色背景，更清爽 */
   border-radius: 16px;
   width: 90%;
   max-width: 800px;
   max-height: 80vh;
   overflow-y: auto;
-  box-shadow: 0 8px 24px rgba(0,0,0,0.15);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.15);
+  animation: modalFadeIn 0.12s ease forwards; /* 略晚于遮罩，更有层次 */
+  opacity: 0;
+  margin: 0 20px; /* 避免移动端贴边 */
 }
 
-/* 弹窗头部 */
+/* 通用淡入动画：轻量化，无其他变换 */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 弹窗头部：优化间距，统一配色 */
 .modal-header {
   padding: 20px;
   border-bottom: 1px solid #e8e8e8;
@@ -283,18 +310,19 @@ onMounted(() => {
   justify-content: space-between;
 }
 
-/* 弹窗标题 */
+/* 弹窗标题：统一字体大小和配色 */
 .modal-title {
-  font-size: 2rem;
-  color: #2f5496;
+  font-size: 1.8rem; /* 下调字体大小，更协调 */
+  color: #2f5496; /* 主色调，统一风格 */
   margin: 0;
+  font-weight: 700;
 }
 
-/* 弹窗关闭按钮 */
+/* 弹窗关闭按钮：轻量化过渡，优化反馈 */
 .modal-close-btn {
   background: transparent;
   border: none;
-  font-size: 2rem;
+  font-size: 1.8rem;
   color: #999;
   cursor: pointer;
   width: 40px;
@@ -303,40 +331,50 @@ onMounted(() => {
   align-items: center;
   justify-content: center;
   border-radius: 50%;
-  transition: all 0.3s ease;
+  transition: all 0.1s ease; /* 缩短过渡时长 */
+  user-select: none;
 }
 
 .modal-close-btn:hover {
-  color: #ff4444;
-  background: rgba(255, 68, 68, 0.1);
+  color: #ff4d4f; /* 危险色，统一风格 */
+  background: rgba(255, 77, 79, 0.1);
+  transform: scale(1.1);
 }
 
-/* 弹窗主体内容 */
+.modal-close-btn:active {
+  transform: scale(0.95);
+}
+
+/* 弹窗主体内容：优化内边距 */
 .modal-body {
   padding: 20px;
 }
 
-/* 分类卡片基础样式 - 同步提高透明度（关键修改） */
+/* 分类卡片基础样式 - 轻量化过渡，协调配色 */
 .category-card {
-  /* 提高透明度：从 0.1 改为 0.05 */
-  background: rgba(0, 192, 226, 0.5);
+  background: rgba(255, 255, 255, 0.9); /* 白色背景，更清爽 */
   border-radius: 16px; 
-  padding: 40px 20px; 
-  box-shadow: 0 4px 12px rgba(0,0,0,0.08); 
+  padding: 25px 20px; /* 下调内边距，更紧凑 */
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); 
   cursor: pointer; 
-  transition: all 0.3s ease; 
-  border: 1px solid #e8e8e8; 
+  transition: all 0.15s ease; /* 缩短过渡时长 */
+  border: 2px solid #b3d8ff; 
   margin-bottom: 15px; 
   text-align: center;
+  user-select: none;
 }
 
-/* 分类卡片悬停效果 - 同步提高透明度（关键修改） */
+/* 分类卡片悬停效果 - 轻量化反馈，统一风格 */
 .category-card:hover {
-  transform: translateY(-5px); 
-  box-shadow: 0 8px 20px rgba(0,0,0,0.15); 
-  border-color: #00c0e2; 
-  /* 提高hover透明度：从 0.2 改为 0.15 */
-  background: rgba(0, 192, 226, 0.15);
+  transform: translateY(-3px) scale(1.01); /* 轻微位移+缩放 */
+  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.15); 
+  border-color: #2f5496; 
+  background: rgba(255, 255, 255, 1);
+}
+
+.category-card:active {
+  transform: translateY(1px);
+  box-shadow: 0 2px 8px rgba(47, 84, 150, 0.1);
 }
 
 /* 可点击元素样式 */
@@ -344,49 +382,55 @@ onMounted(() => {
   cursor: pointer; 
 }
 
-/* 分类标题样式 */
+/* 分类标题样式：统一字体大小和配色 */
 .category-title {
-  font-size: 3rem; 
+  font-size: 1.8rem; /* 下调字体大小，更协调 */
   margin-bottom: 15px; 
-  color: #13e0ee; 
+  color: #2f5496; /* 主色调，统一风格 */
   font-weight: 700; 
+  transition: color 0.15s ease;
 }
 
-/* 分类统计信息样式 */
+.category-card:hover .category-title {
+  color: #00c0e2; /* 悬浮变色，反馈更明显 */
+}
+
+/* 分类统计信息样式：优化字体大小和配色 */
 .category-stats {
   margin: 10px 0; 
-  font-size: 1.8rem; 
+  font-size: 1.2rem; /* 下调字体大小，更协调 */
   color: #666; 
 }
 
-/* 节点预览区域样式 */
+/* 节点预览区域样式：优化间距 */
 .nodes-preview {
   margin-top: 15px; 
   border-top: 1px solid #eee; 
   padding-top: 15px; 
 }
 
-/* 预览节点样式 */
+/* 预览节点样式：优化字体大小 */
 .preview-node {
   display: flex; 
   justify-content: center;
-  font-size: 2.1rem; 
+  font-size: 1rem; /* 下调字体大小，更协调 */
 }
 
-/* 预览时间样式 */
+/* 预览时间样式：统一配色 */
 .preview-time {
   color: #888; 
 }
 
-/* 加载状态提示样式 */
+/* 加载状态提示样式：优化字体和配色 */
 .loading-message {
   text-align: center; 
-  color: #666; 
+  color: #2f5496; /* 主色调，统一风格 */
   padding: 20px; 
   font-size: 1rem; 
+  font-weight: 500;
 }
 
-/* 空状态提示样式 */
+/* 空状态提示样式：优化字体和配色 */
 .empty-message {
   text-align: center; 
   color: #999; 
@@ -401,6 +445,7 @@ onMounted(() => {
     padding: 30px 20px; /* 移动端缩小内边距 */
     border-radius: 40px; /* 移动端缩小圆角，更协调 */
     background-color: rgba(179, 216, 255, 0.3); /* 移动端降低透明度，更柔和 */
+    box-shadow: 0 5px 15px rgba(47, 84, 150, 0.08);
   }
 
   .title {
@@ -419,20 +464,12 @@ onMounted(() => {
   .main-category-card {
     width: 100%; /* 移动端卡片自适应宽度 */
     padding: 30px 10px;
-    background: rgba(0, 192, 226, 0.05); /* 移动端同步高透明度 */
-  }
-
-  .main-category-card:hover {
-    background: rgba(0, 192, 226, 0.15); /* 移动端hover同步 */
+    border: 1px solid #b3d8ff;
   }
 
   .category-card {
     padding: 15px; 
-    background: rgba(0, 192, 226, 0.05); /* 移动端同步高透明度 */
-  }
-
-  .category-card:hover {
-    background: rgba(0, 192, 226, 0.15); /* 移动端hover同步 */
+    border: 1px solid #b3d8ff;
   }
 
   .category-title {

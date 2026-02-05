@@ -3,7 +3,7 @@
   <div class="home-page">
     <!-- 标题与头像区域 -->
     <section class="title-avatar-wrap">
-        <button  class="recent-btn"   @click="router.push('/recent-activity')" > 看看龙最近在做什么</button>
+      <button class="recent-btn" @click="router.push('/recent-activity')">看看龙最近在做什么</button>
       <!-- 博客主标题 -->
       <h1 class="blog-main-title">小龙の分享站</h1>
       <!-- 个人头像图片：Vue 3 中统一使用脚本内的 router 实例 -->
@@ -74,8 +74,11 @@
         </div>
         <!-- 登录/关闭按钮 -->
         <div class="modal-btn-group">
-          <button class="modal-login-btn" @click="handleLogin">登录</button>
-          <button class="modal-close-btn" @click="closeLoginModal">取消</button>
+          <button class="modal-login-btn" @click="handleLogin" :disabled="isLoginLoading">
+            <span v-if="isLoginLoading" class="loading-icon">🔄</span>
+            {{ isLoginLoading ? '登录中...' : '登录' }}
+          </button>
+          <button class="modal-close-btn" @click="closeLoginModal" :disabled="isLoginLoading">取消</button>
         </div>
       </div>
     </div>
@@ -84,14 +87,13 @@
 
 <script setup>
 // Vue 3 中 useRouter 必须从 vue-router 导入
-import { ref, onMounted } from 'vue' // 新增：导入 onMounted 生命周期钩子
-import { useRouter, useRoute } from 'vue-router' // 新增：导入 useRoute 用于获取当前路由
+import { ref, nextTick } from 'vue'
+import { useRouter } from 'vue-router'
 // 引入 axios 用于发送接口请求
 import axios from 'axios'
 
 // 创建 Vue 3 路由实例
 const router = useRouter()
-const route = useRoute() // 新增：创建路由对象，用于获取当前访问路径
 
 /**
  * 定义圆形项目的列表数据（带路由路径）
@@ -105,9 +107,10 @@ const circleList = [
 /**
  * 处理圆形项目点击事件（直接读取path跳转，简洁健壮）
  */
-const handleCircleClick = (item) => {
-  // 有有效path才执行跳转
+const handleCircleClick = async (item) => {
+  // 有有效path才执行跳转，加nextTick保证交互流畅
   if (item.path) {
+    await nextTick()
     router.push(item.path)
   }
 }
@@ -124,7 +127,8 @@ const isLoginLoading = ref(false)
 /**
  * 关闭登录弹窗并重置表单数据
  */
-const closeLoginModal = () => {
+const closeLoginModal = async () => {
+  await nextTick()
   showLoginModal.value = false
   loginForm.value.username = ''
   loginForm.value.password = ''
@@ -184,28 +188,41 @@ const handleLogin = async () => {
 </script>
 
 <style scoped>
-/* 标题与头像包裹区域样式 */
-.title-avatar-wrap {
+/* 页面全局样式优化 */
+.home-page {
   width: 90%;
   max-width: 1200px;
+  margin: 0 auto;
+  font-family: "Microsoft YaHei", "楷体", "KaiTi", "STKaiti", serif;
+}
+
+/* 标题与头像包裹区域样式 */
+.title-avatar-wrap {
+  width: 100%;
   margin: 40px 0;
   display: flex;
   justify-content: center;
   align-items: center;
   position: relative;
+  gap: 20px;
 }
 
-/* 博客主标题样式 */
+/* 博客主标题样式 - 美化：渐变文字 */
 .blog-main-title {
   font-size: 86px;
   font-weight: 900;
-  color: #00c0e2;
+  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   font-family: "Ma Shan Zheng", "楷体", "STKaiti", cursive;
   letter-spacing: 14px;
   text-align: center;
+  margin: 0;
+  transition: all 0.2s ease;
 }
 
-/* 个人头像样式 */
+/* 个人头像样式 - 优化：轻量化过渡 */
 .personal-avatar {
   width: 110px;
   height: 110px;
@@ -214,16 +231,56 @@ const handleLogin = async () => {
   position: absolute;
   right: 0;
   cursor: pointer;
-  transition: transform 0.3s ease;
+  transition: all 0.15s ease; /* 缩短过渡时长，更丝滑 */
+  box-shadow: 0 4px 12px rgba(47, 84, 150, 0.15);
 }
 
-/* 主要内容区域样式*/
+.personal-avatar:hover {
+  transform: scale(1.05); /* 轻微缩放，无冗余动画 */
+  border-color: #2f5496;
+  box-shadow: 0 6px 16px rgba(47, 84, 150, 0.2);
+}
+
+.personal-avatar:active {
+  transform: scale(0.98); /* 按压反馈，更真实 */
+}
+
+/* 最近动态按钮 - 优化：轻量化过渡 */
+.recent-btn {
+  position: absolute;
+  left: 0;
+  top: 50%;
+  transform: translateY(-50%);
+  padding: 12px 24px;
+  background-color: #2f5496;
+  color: white;
+  border: none;
+  border-radius: 24px;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.1s ease; /* 轻量化过渡 */
+  box-shadow: 0 3px 8px rgba(47, 84, 150, 0.2);
+  user-select: none;
+}
+
+.recent-btn:hover {
+  background-color: #3a66b8;
+  box-shadow: 0 4px 12px rgba(47, 84, 150, 0.3);
+}
+
+.recent-btn:active {
+  transform: translateY(-50%) translateY(1px);
+  box-shadow: none;
+}
+
+/* 主要内容区域样式 - 优化：背景美化+轻量化 */
 .main-content-wrap {
   width: 100%;
   /* 修改：固定高度改为最小高度，自适应新增文字 */
   min-height: 520px;
-  /* 核心修改：将纯色背景改为 RGBA 格式，透明度 0.6 */
-  background-color: rgba(179, 216, 255, 0.6);
+  /* 核心修改：将纯色背景改为 RGBA 格式，透明度 0.6 + 轻微渐变 */
+  background: linear-gradient(rgba(179, 216, 255, 0.5), rgba(179, 216, 255, 0.7));
   border-radius: 120px;
   /* 修改：改为垂直排列，保证文字在上、圆圈在下 */
   flex-direction: column;
@@ -233,6 +290,7 @@ const handleLogin = async () => {
   margin-bottom: 50px;
   box-sizing: border-box;
   display: flex;
+  box-shadow: 0 10px 30px rgba(47, 84, 150, 0.1); /* 轻微阴影，美化视觉 */
 }
 
 /* 新增：蓝色区块内圆圈上方的提示文字样式（复用圆圈字体样式） */
@@ -248,6 +306,7 @@ const handleLogin = async () => {
   /* 布局调整：与下方圆圈保持间距，占据整行宽度 */
   width: 100%;
   margin-bottom: 40px; /* 与下方圆圈拉开距离，可按需调整 */
+  transition: color 0.2s ease;
 }
 
 /* 圆形项目项样式（统一布局，无额外外边距干扰） */
@@ -258,20 +317,21 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   margin: 80px;
+  user-select: none;
 }
 
-/* 圆形背景样式（完全统一，大小、边框、阴影一致） */
+/* 圆形背景样式（完全统一，大小、边框、阴影一致）- 优化：轻量化过渡 */
 .circle-bg {
   width: 260px;
   height: 260px;
   border-radius: 50%;
-  background-color: #00c0e2;
+  background: linear-gradient(135deg, #00c0e2, #4fc3f7); /* 渐变背景，美化 */
   display: flex;
   justify-content: center;
   align-items: center;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.15s ease; /* 缩短过渡，更丝滑 */
   border: 2px solid #2f5496;
   padding: 20px;
   box-sizing: border-box;
@@ -286,12 +346,24 @@ const handleLogin = async () => {
   text-align: center;
   white-space: pre-line;
   line-height: 1.5;
+  transition: color 0.15s ease;
 }
 
 /* 圆形背景悬浮 + 激活态样式：解决点击恢复原形问题，保持放大效果 */
-.circle-bg:hover, .circle-bg:active {
-  transform: scale(1.05);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+.circle-bg:hover {
+  transform: scale(1.03); /* 缩小缩放比例，减少渲染开销 */
+  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.25);
+  border-color: #3a66b8;
+  background: linear-gradient(135deg, #4fc3f7, #00c0e2);
+}
+
+.circle-bg:hover .circle-text {
+  color: #1f3a6b;
+}
+
+.circle-bg:active {
+  transform: scale(0.98); /* 按压反馈，无卡顿 */
+  box-shadow: 0 2px 8px rgba(47, 84, 150, 0.2);
 }
 
 /* 后台按钮组样式 */
@@ -305,7 +377,7 @@ const handleLogin = async () => {
   gap: 10px;
 }
 
-/* 后台按钮样式 */
+/* 后台按钮样式 - 优化：轻量化过渡 */
 .admin-btn {
   padding: 10px 20px;
   background-color: #2f5496;
@@ -315,12 +387,20 @@ const handleLogin = async () => {
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   font-size: 18px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.1s ease; /* 轻量化过渡 */
+  box-shadow: 0 3px 8px rgba(47, 84, 150, 0.2);
+  user-select: none;
 }
 
-/* 按钮悬浮效果 */
+/* 按钮悬浮 + 激活效果 */
 .admin-btn:hover {
-  background-color: #1f3a6b;
+  background-color: #3a66b8;
+  box-shadow: 0 4px 12px rgba(47, 84, 150, 0.3);
+}
+
+.admin-btn:active {
+  transform: translateY(1px);
+  box-shadow: none;
 }
 
 /* 后台提示词样式 */
@@ -330,7 +410,7 @@ const handleLogin = async () => {
   font-family: "楷体", "KaiTi", "STKaiti", serif;
 }
 
-/* 登录弹窗遮罩层样式 */
+/* 登录弹窗遮罩层样式 - 优化：秒开淡入动画，无模糊 */
 .login-modal-mask {
   position: fixed;
   top: 0;
@@ -342,9 +422,11 @@ const handleLogin = async () => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
+  animation: modalFadeIn 0.1s ease forwards; /* 轻量化淡入 */
+  opacity: 0;
 }
 
-/* 登录弹窗容器样式 */
+/* 登录弹窗容器样式 - 优化：淡入动画，美化视觉 */
 .login-modal {
   width: 380px;
   background-color: #ffffff;
@@ -353,12 +435,24 @@ const handleLogin = async () => {
   box-sizing: border-box;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   font-family: "楷体", "KaiTi", "STKaiti", serif;
+  animation: modalFadeIn 0.12s ease forwards; /* 轻微延迟，更流畅 */
+  opacity: 0;
+  overflow: hidden;
 }
 
-/* 弹窗标题样式 */
+/* 通用淡入动画：轻量化，无冗余变换 */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
+}
+
+/* 弹窗标题样式 - 美化：渐变文字 */
 .modal-title {
   font-size: 24px;
-  color: #2f5496;
+  background: linear-gradient(135deg, #2f5496, #00c0e2);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   text-align: center;
   margin-bottom: 20px;
   font-weight: 700;
@@ -380,7 +474,7 @@ const handleLogin = async () => {
   margin-right: 10px;
 }
 
-/* 输入框样式 */
+/* 输入框样式 - 优化：轻量化过渡 */
 .modal-input {
   flex: 1;
   height: 40px;
@@ -390,10 +484,11 @@ const handleLogin = async () => {
   font-size: 16px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   outline: none;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.1s ease; /* 仅边框过渡，减少渲染 */
+  box-sizing: border-box;
 }
 
-/* 输入框聚焦样式 */
+/* 输入框聚焦样式 - 简化：仅变边框色 */
 .modal-input:focus {
   border-color: #2f5496;
 }
@@ -406,7 +501,7 @@ const handleLogin = async () => {
   margin-top: 25px;
 }
 
-/* 登录按钮样式 */
+/* 登录按钮样式 - 优化：轻量化过渡 */
 .modal-login-btn {
   padding: 10px 30px;
   background-color: #2f5496;
@@ -416,14 +511,31 @@ const handleLogin = async () => {
   font-size: 18px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.1s ease; /* 轻量化过渡 */
+  box-shadow: 0 3px 8px rgba(47, 84, 150, 0.2);
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  user-select: none;
 }
 
-.modal-login-btn:hover {
-  background-color: #1f3a6b;
+.modal-login-btn:hover:not(:disabled) {
+  background-color: #3a66b8;
+  box-shadow: 0 4px 12px rgba(47, 84, 150, 0.3);
 }
 
-/* 关闭按钮样式 */
+.modal-login-btn:active:not(:disabled) {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+
+.modal-login-btn:disabled {
+  background-color: #b3d8ff;
+  cursor: not-allowed;
+  box-shadow: none;
+}
+
+/* 关闭按钮样式 - 优化：轻量化过渡 */
 .modal-close-btn {
   padding: 10px 30px;
   background-color: #f5f5f5;
@@ -433,11 +545,33 @@ const handleLogin = async () => {
   font-size: 18px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.1s ease; /* 轻量化过渡 */
+  user-select: none;
 }
 
-.modal-close-btn:hover {
-  background-color: #e8e8e8;
+.modal-close-btn:hover:not(:disabled) {
+  background-color: #f0f0f0;
+  border-color: #ccc;
+}
+
+.modal-close-btn:active:not(:disabled) {
+  transform: translateY(1px);
+}
+
+.modal-close-btn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+/* 加载图标动画 */
+.loading-icon {
+  animation: rotate 1.5s linear infinite;
+  font-size: 16px;
+}
+
+@keyframes rotate {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
 }
 
 /* 新增：备案信息样式（合规且美观，与页面风格统一） */
@@ -451,6 +585,7 @@ const handleLogin = async () => {
   color: #666; /* 浅灰色，不突兀 */
   text-decoration: none; /* 去掉默认下划线，更美观 */
   font-family: "楷体", "KaiTi", "STKaiti", serif;
+  transition: color 0.2s ease;
 }
 
 .beian-link:hover {
@@ -463,6 +598,7 @@ const handleLogin = async () => {
   .home-page {
     width: 100%;
     box-sizing: border-box;
+    padding: 0 10px;
   }
 
   .title-avatar-wrap {
@@ -470,6 +606,7 @@ const handleLogin = async () => {
     margin: 20px 0;
     flex-direction: column; /* 垂直排列，适配手机端 */
     gap: 15px; /* 增加内部间距，避免拥挤 */
+    position: relative;
   }
 
   .blog-main-title {
@@ -515,8 +652,9 @@ const handleLogin = async () => {
     flex-direction: column;
     gap: 50px; /* 手机端垂直排列，增大上下间距（核心间距优化） */
     margin-bottom: 20px;
-    /* 手机端同步设置相同透明度 */
-    background-color: rgba(179, 216, 255, 0.3);
+    /* 手机端同步设置相同透明度 + 渐变 */
+    background: linear-gradient(rgba(179, 216, 255, 0.2), rgba(179, 216, 255, 0.4));
+    box-shadow: 0 5px 15px rgba(47, 84, 150, 0.08);
   }
 
   /* 新增：手机端提示文字适配 */
@@ -529,6 +667,7 @@ const handleLogin = async () => {
   .circle-item {
     width: 150px;
     height: 150px;
+    margin: 40px;
   }
 
   .circle-bg {
@@ -541,6 +680,15 @@ const handleLogin = async () => {
   .circle-text {
     font-size: 20px;
     line-height: 1.4;
+  }
+
+  /* 最近动态按钮手机端适配 */
+  .recent-btn {
+    position: static;
+    transform: none;
+    margin-bottom: 15px;
+    padding: 8px 18px;
+    font-size: 14px;
   }
 
   /* 手机端弹窗适配 */
@@ -575,37 +723,6 @@ const handleLogin = async () => {
 
   .beian-link {
     font-size: 10px;
-  }
-}
-
-.recent-btn {
-  position: absolute;
-  left: 0;
-  top: 50%;
-  transform: translateY(-50%);
-  padding: 12px 24px;
-  background-color: #2f5496;
-  color: white;
-  border: none;
-  border-radius: 24px;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  font-size: 18px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.recent-btn:hover {
-  background-color: #1f3a6b;
-}
-
-/* 响应式适配 */
-@media (max-width: 768px) {
-  .recent-btn {
-    position: static;
-    transform: none;
-    margin-bottom: 15px;
-    padding: 8px 18px;
-    font-size: 14px;
   }
 }
 </style>

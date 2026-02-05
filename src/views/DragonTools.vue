@@ -13,13 +13,14 @@
             :src="tool.icon" 
             :alt="tool.name" 
             class="tool-icon"
+            loading="lazy"
           />
           <!-- 如果不是图片，则显示图标字符 -->
-          <div v-else class="tool-icon">{{ tool.icon }}</div>
+          <div v-else class="tool-icon tool-icon-text">{{ tool.icon }}</div>
 
           <h3>{{ tool.name }}</h3>
           <p>{{ tool.desc }}</p>
-          <a :href="tool.link" target="_blank" class="tool-link">前往使用 →</a>
+          <a :href="tool.link" target="_blank" class="tool-link" rel="noopener noreferrer">前往使用 →</a>
         </div>
       </div>
     </div>
@@ -55,6 +56,7 @@ const isImageUrl = (str) => {
 </script>
 
 <style scoped>
+/* 全局容器：统一字体、布局，和主页风格对齐 */
 .dragon-tools {
   padding: 40px;
   max-width: 1200px;
@@ -62,14 +64,19 @@ const isImageUrl = (str) => {
   display: flex;
   flex-direction: column;
   align-items: center; /* 整体居中，保持风格统一 */
+  font-family: "Ma Shan Zheng", "楷体", "KaiTi", "STKaiti", cursive, serif; /* 统一全站字体 */
 }
 
+/* 页面标题：优化样式，和主页标题视觉一致 */
 h1 {
-  font-size: 100px;
-  color: #00c0e2;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  text-align: center;
-  margin-bottom: 30px; /* 与下方蓝色背景保持间距 */
+  font-size: 100px; /* 下调字体大小，避免溢出 */
+  font-weight: bold; 
+  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+  text-shadow: 1px 1px 2px rgba(0,0,0,0.05); 
+  margin: 0;
 }
 
 /* 核心：纯浅蓝透明背景（无条纹），与其他页面风格统一 */
@@ -80,67 +87,98 @@ h1 {
   padding: 40px; /* 内边距，避免内容贴边 */
   box-sizing: border-box;
   margin-bottom: 20px;
+  border: 2px solid rgba(255, 255, 255, 0.8); /* 新增：白色描边，提升精致感 */
+  box-shadow: 0 8px 24px rgba(47, 84, 150, 0.08); /* 新增：柔和阴影，增强立体感 */
 }
 
+/* 工具网格布局：保持响应式，优化间距 */
 .tools-grid {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
   gap: 30px;
 }
 
+/* 工具卡片：优化透明度、阴影，统一全站卡片风格 */
 .tool-card {
-  /* 提高卡片透明度：更柔和，与其他页面卡片统一 */
-  background: rgba(255, 255, 255, 0.3); /* 从 0.6 改为 0.3，提高透明度 */
+  background: rgba(255, 255, 255, 0.3); /* 高透明度，柔和贴合背景 */
   padding: 30px;
-  border-radius: 16px;
+  border-radius: 24px; /* 增大圆角，与全站大圆角风格对齐 */
   box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
   text-align: center;
-  transition: all 0.3s ease; /* 新增过渡，提升交互感 */
+  transition: all 0.15s ease; /* 缩短过渡时长，更轻量化流畅 */
+  border: 1px solid rgba(255, 255, 255, 0.5); /* 新增：白色细描边，提升精致度 */
 }
 
-/* 卡片悬停效果：轻微上浮，增强交互 */
+/* 卡片悬停效果：轻微上浮，增强交互，与评论区卡片风格统一 */
 .tool-card:hover {
   transform: translateY(-5px);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
+  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.12); /* 主色调阴影，增强品牌感 */
+  background: rgba(255, 255, 255, 0.4); /* 悬停提高透明度，增强反馈 */
 }
 
+/* 工具图标：统一样式，优化对齐 */
 .tool-icon {
   width: 48px;
   height: 48px;
-  margin-bottom: 15px;
+  margin: 0 auto 15px; /* 水平居中，优化间距 */
   object-fit: contain;
+  border-radius: 8px; /* 新增：图标圆角，避免生硬 */
 }
 
-.tool-card h3 {
+/* 文字图标样式兜底：统一居中、字体大小 */
+.tool-icon-text {
+  display: flex;
+  align-items: center;
+  justify-content: center;
   font-size: 24px;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  margin-bottom: 10px;
 }
 
+/* 卡片标题：统一字体、色值，和全站对齐 */
+.tool-card h3 {
+  font-size: 24px;
+  color: #2f5496; /* 全站主色调 */
+  margin-bottom: 10px;
+  font-weight: 700; /* 加粗，提升可读性 */
+  letter-spacing: 2px; /* 新增：轻微字间距，提升美感 */
+}
+
+/* 卡片描述：优化字体、行高，提升可读性 */
 .tool-card p {
   font-size: 16px;
-  color: #666;
+  color: #555; /* 加深描述色，提升可读性 */
   margin-bottom: 20px;
-  line-height: 1.5;
+  line-height: 1.6; /* 优化行高，更易阅读 */
+  font-family: "楷体", "KaiTi", "STKaiti", serif; /* 描述用标准楷体，提升可读性 */
 }
 
+/* 工具链接按钮：统一样式，和评论区提交按钮风格对齐 */
 .tool-link {
   display: inline-block;
-  padding: 8px 16px;
-  background: #2f5496;
+  padding: 10px 20px; /* 优化内边距，提升点击区域 */
+  background: #2f5496; /* 全站主色调 */
   color: #fff;
-  border-radius: 8px;
+  border-radius: 16px; /* 增大圆角，统一风格 */
   text-decoration: none;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  transition: background 0.3s;
+  font-size: 18px; /* 增大字体，提升视觉效果 */
+  transition: all 0.15s ease; /* 轻量化过渡 */
+  font-weight: 500;
 }
 
+/* 按钮悬停效果：统一深色系，增强反馈 */
 .tool-link:hover {
-  background: #1f3a6b;
+  background: #1f3a6b; /* 主色调加深，和全站按钮风格一致 */
+  transform: translateY(-2px); /* 轻微上浮，增强交互 */
+  box-shadow: 0 4px 8px rgba(47, 84, 150, 0.2); /* 新增：按钮阴影，提升立体感 */
 }
 
-/* 手机端适配（屏幕宽度 ≤ 768px） */
+/* 按钮:active 效果：还原位置，增强点击反馈 */
+.tool-link:active {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(47, 84, 150, 0.2);
+}
+
+/* 手机端适配（屏幕宽度 ≤ 768px）：精细化调整，保持风格统一 */
 @media (max-width: 768px) {
   .dragon-tools {
     /* 减少手机端页面内边距，避免内容太靠边 */
@@ -149,8 +187,10 @@ h1 {
 
   h1 {
     /* 大幅缩小手机端标题字体，避免超出屏幕 */
-    font-size: 3rem; /* 约 48px，可根据需求调整 */
+    font-size: 48px; /* 固定字体大小，比 rem 更稳定 */
+    letter-spacing: 6px; /* 移动端缩小字间距 */
     margin-bottom: 25px;
+    text-shadow: 1px 1px 2px rgba(47, 84, 150, 0.1);
   }
 
   /* 手机端背景区块适配 */
@@ -158,6 +198,8 @@ h1 {
     padding: 20px 15px;
     border-radius: 40px; /* 移动端缩小圆角 */
     background-color: rgba(179, 216, 255, 0.3); /* 移动端降低透明度，更柔和 */
+    border-width: 1px; /* 移动端缩窄描边 */
+    box-shadow: 0 4px 12px rgba(47, 84, 150, 0.08);
   }
 
   .tools-grid {
@@ -171,11 +213,13 @@ h1 {
     /* 减少手机端卡片内边距，节省屏幕空间 */
     padding: 20px 15px;
     background: rgba(255, 255, 255, 0.2); /* 移动端同步提高透明度 */
+    border-radius: 16px; /* 移动端缩小卡片圆角 */
   }
 
   .tool-card h3 {
     /* 缩小卡片标题字体 */
     font-size: 20px;
+    letter-spacing: 1px;
   }
 
   .tool-card p {
@@ -186,8 +230,9 @@ h1 {
 
   .tool-link {
     /* 微调按钮内边距，适配手机端点击区域 */
-    padding: 6px 12px;
-    font-size: 14px;
+    padding: 8px 16px;
+    font-size: 16px;
+    border-radius: 12px;
   }
 
   .tool-icon {

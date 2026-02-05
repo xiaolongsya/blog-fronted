@@ -20,19 +20,21 @@
       </div>
     </section>
 
-    <!-- 1. 龙的成长记录主弹窗 -->
+    <!-- 1. 龙的成长记录主弹窗（新增删除按钮） -->
     <div class="modal-mask" v-if="showGrowthMainModal" @click="closeGrowthMainModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">龙的成长记录</div>
         <div class="growth-btn-group">
           <button class="growth-sub-btn" @click="openAddCategoryModal">添加成长分类</button>
-          <button class="growth-sub-btn" @click="openAddNodeModal">添加成长节点</button>
+          <button class="growth-sub-btn" @click="openSelectCategoryTypeModal">添加成长节点</button>
+          <button class="growth-sub-btn danger" @click="openDeleteCategoryModal">删除成长分类</button>
+          <button class="growth-sub-btn danger" @click="openDeleteNodeStep1Modal">删除成长节点</button>
         </div>
         <button class="modal-close-btn" @click="closeGrowthMainModal">关闭</button>
       </div>
     </div>
 
-    <!-- 2. 添加成长分类弹窗 - 新增类型选择下拉框 -->
+    <!-- 2. 添加成长分类弹窗 -->
     <div class="modal-mask" v-if="showAddCategoryModal" @click="closeAddCategoryModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">添加成长分类</div>
@@ -44,13 +46,13 @@
             class="modal-input"
           />
         </div>
-        <!-- 关键新增：类型选择下拉框 -->
         <div class="modal-form-item">
           <label>类型选择：</label>
           <select v-model="categoryForm.type" class="modal-select" required>
             <option value="" disabled>请选择分类类型</option>
             <option value="前端">前端</option>
             <option value="后端">后端</option>
+            <option value="算法">算法</option>
             <option value="其他">其他</option>
           </select>
         </div>
@@ -68,18 +70,52 @@
       </div>
     </div>
 
-    <!-- 3. 添加成长节点弹窗 -->
+    <!-- 3. 第一步：选择分类类型弹窗（添加节点） -->
+    <div class="modal-mask" v-if="showSelectTypeModal" @click="closeSelectTypeModal">
+      <div class="modal-container" @click.stop style="width: 400px;">
+        <div class="modal-title">选择分类类型</div>
+        <div class="modal-form-item">
+          <label>请选择板块类型：</label>
+          <select v-model="selectedCategoryType" class="modal-select" required>
+            <option value="" disabled>请选择板块类型</option>
+            <option value="前端">前端</option>
+            <option value="后端">后端</option>
+            <option value="算法">算法</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn" 
+            @click="confirmCategoryType"
+            :disabled="!selectedCategoryType || isSubmitting"
+          >
+            下一步
+          </button>
+          <button class="modal-close-btn" @click="closeSelectTypeModal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 4. 第二步：选择具体分类弹窗（添加节点） -->
     <div class="modal-mask" v-if="showAddNodeModal" @click="closeAddNodeModal">
       <div class="modal-container" @click.stop>
-        <div class="modal-title">添加成长节点</div>
+        <div class="modal-title">添加成长节点（{{ selectedCategoryType }}板块）</div>
         <div class="modal-form-item">
-          <label>分类ID：</label>
-          <input 
-            v-model.number="nodeForm.growthId" 
-            type="number"
-            placeholder="请输入分类ID"
-            class="modal-input"
-          />
+          <label>所属具体分类：</label>
+          <select v-model="nodeForm.growthId" class="modal-select" required>
+            <option value="" disabled>请选择所属具体分类</option>
+            <option 
+              v-for="category in filteredCategoryList" 
+              :key="category.id" 
+              :value="category.id"
+            >
+              {{ category.name }}
+            </option>
+          </select>
+          <p class="upload-tip" v-if="filteredCategoryList.length === 0">
+            该类型下暂无分类，请先添加对应分类
+          </p>
         </div>
         <div class="modal-form-item">
           <label>节点内容：</label>
@@ -110,7 +146,7 @@
           <button 
             class="modal-submit-btn" 
             @click="submitNode"
-            :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting"
+            :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting || filteredCategoryList.length === 0"
           >
             <span v-if="isSubmitting" class="loading-icon">🔄</span>
             {{ isSubmitting ? '提交中...' : '提交节点' }}
@@ -120,7 +156,132 @@
       </div>
     </div>
 
-    <!-- 4. 更新龙岛日志弹窗 -->
+    <!-- 5. 删除成长分类弹窗 -->
+    <div class="modal-mask" v-if="showDeleteCategoryModal" @click="closeDeleteCategoryModal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-title danger-title">删除成长分类</div>
+        <div class="modal-form-item">
+          <label>请选择要删除的分类：</label>
+          <select v-model="deleteCategoryId" class="modal-select" required>
+            <option value="" disabled>请选择分类</option>
+            <option 
+              v-for="category in categoryList" 
+              :key="category.id" 
+              :value="category.id"
+            >
+              {{ category.name }}（类型：{{ category.type }}）
+            </option>
+          </select>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn danger-btn" 
+            @click="submitDeleteCategory"
+            :disabled="!deleteCategoryId || isSubmitting"
+          >
+            <span v-if="isSubmitting" class="loading-icon">🔄</span>
+            {{ isSubmitting ? '删除中...' : '确认删除' }}
+          </button>
+          <button class="modal-close-btn" @click="closeDeleteCategoryModal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 6. 删除成长节点：第一步选择分类类型 -->
+    <div class="modal-mask" v-if="showDeleteNodeStep1Modal" @click="closeDeleteNodeStep1Modal">
+      <div class="modal-container" @click.stop style="width: 400px;">
+        <div class="modal-title danger-title">删除成长节点（选择板块）</div>
+        <div class="modal-form-item">
+          <label>请选择板块类型：</label>
+          <select v-model="deleteNodeSelectedType" class="modal-select" required>
+            <option value="" disabled>请选择板块类型</option>
+            <option value="前端">前端</option>
+            <option value="后端">后端</option>
+            <option value="算法">算法</option>
+            <option value="其他">其他</option>
+          </select>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn" 
+            @click="confirmDeleteNodeStep1"
+            :disabled="!deleteNodeSelectedType || isSubmitting"
+          >
+            下一步
+          </button>
+          <button class="modal-close-btn" @click="closeDeleteNodeStep1Modal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 7. 删除成长节点：第二步选择分类 -->
+    <div class="modal-mask" v-if="showDeleteNodeStep2Modal" @click="closeDeleteNodeStep2Modal">
+      <div class="modal-container" @click.stop style="width: 400px;">
+        <div class="modal-title danger-title">删除成长节点（选择分类）</div>
+        <div class="modal-form-item">
+          <label>请选择分类：</label>
+          <select v-model="deleteNodeSelectedCategoryId" class="modal-select" required>
+            <option value="" disabled>请选择分类</option>
+            <option 
+              v-for="category in deleteNodeFilteredCategoryList" 
+              :key="category.id" 
+              :value="category.id"
+            >
+              {{ category.name }}
+            </option>
+          </select>
+          <p class="upload-tip" v-if="deleteNodeFilteredCategoryList.length === 0">
+            该类型下暂无分类
+          </p>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn" 
+            @click="confirmDeleteNodeStep2"
+            :disabled="!deleteNodeSelectedCategoryId || isSubmitting || deleteNodeFilteredCategoryList.length === 0"
+          >
+            下一步
+          </button>
+          <button class="modal-close-btn" @click="closeDeleteNodeStep2Modal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 8. 删除成长节点：第三步选择具体节点 -->
+    <div class="modal-mask" v-if="showDeleteNodeStep3Modal" @click="closeDeleteNodeStep3Modal">
+      <div class="modal-container" @click.stop>
+        <div class="modal-title danger-title">删除成长节点（选择节点）</div>
+        <div class="modal-form-item">
+          <label>请选择要删除的节点：</label>
+          <select v-model="deleteNodeId" class="modal-select" required>
+            <option value="" disabled>请选择节点</option>
+            <option 
+              v-for="node in deleteNodeList" 
+              :key="node.id" 
+              :value="node.id"
+            >
+              {{ node.content }}（创建时间：{{ formatTime(node.createTime) }}）
+            </option>
+          </select>
+          <p class="upload-tip" v-if="deleteNodeList.length === 0">
+            该分类下暂无节点
+          </p>
+        </div>
+        <div class="modal-btn-group">
+          <button 
+            class="modal-submit-btn danger-btn" 
+            @click="submitDeleteNode"
+            :disabled="!deleteNodeId || isSubmitting || deleteNodeList.length === 0"
+          >
+            <span v-if="isSubmitting" class="loading-icon">🔄</span>
+            {{ isSubmitting ? '删除中...' : '确认删除' }}
+          </button>
+          <button class="modal-close-btn" @click="closeDeleteNodeStep3Modal" :disabled="isSubmitting">取消</button>
+        </div>
+      </div>
+    </div>
+
+    <!-- 9. 更新龙岛日志弹窗 -->
     <div class="modal-mask" v-if="showLogModal" @click="closeLogModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">更新龙岛日志</div>
@@ -166,7 +327,7 @@
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
 
 // 圆圈按钮列表
@@ -182,54 +343,174 @@ const circleList = [
 const showLogModal = ref(false)
 const showGrowthMainModal = ref(false)
 const showAddCategoryModal = ref(false)
+const showSelectTypeModal = ref(false)
 const showAddNodeModal = ref(false)
+const showDeleteCategoryModal = ref(false)
+const showDeleteNodeStep1Modal = ref(false)
+const showDeleteNodeStep2Modal = ref(false)
+const showDeleteNodeStep3Modal = ref(false)
 const isSubmitting = ref(false)
 
-// 表单数据 - 关键修改：categoryForm 新增 type 字段
+// 分类相关数据
+const categoryList = ref([])
+const selectedCategoryType = ref('')
+const deleteNodeSelectedType = ref('')
+const deleteNodeSelectedCategoryId = ref('')
+const deleteNodeList = ref([])
+
+// 表单数据
 const logForm = ref({ content: '', imgUrls: [] })
-const categoryForm = ref({ 
-  name: '', 
-  type: '' // 新增：存储分类类型（前端/后端/其他）
+const categoryForm = ref({ name: '', type: '' })
+const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
+const deleteCategoryId = ref('')
+const deleteNodeId = ref('')
+
+// 计算属性
+const filteredCategoryList = computed(() => {
+  if (!selectedCategoryType.value) return []
+  return categoryList.value.filter(category => category.type === selectedCategoryType.value)
 })
-const nodeForm = ref({ growthId: null, content: '', imgUrls: [] })
+const deleteNodeFilteredCategoryList = computed(() => {
+  if (!deleteNodeSelectedType.value) return []
+  return categoryList.value.filter(category => category.type === deleteNodeSelectedType.value)
+})
 
 /**
- * 处理圆圈按钮点击
+ * 获取全部分类列表
  */
-const handleCircleClick = (item) => {
+const getCategoryList = async () => {
+  try {
+    const res = await axios.get('https://xiaolongya.cn/blog/growth/list')
+    if (res.data.code === 200) {
+      categoryList.value = res.data.data || []
+    } else {
+      throw new Error(res.data.msg || '获取分类列表失败')
+    }
+  } catch (err) {
+    alert(`获取分类列表失败：${err.message}`)
+  }
+}
+
+/**
+ * 获取指定分类下的节点列表
+ */
+const getNodeListByCategoryId = async (categoryId) => {
+  try {
+    const res = await axios.get(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`)
+    if (res.data.code === 200) {
+      deleteNodeList.value = res.data.data || []
+    } else {
+      throw new Error(res.data.msg || '获取节点列表失败')
+    }
+  } catch (err) {
+    alert(`获取节点列表失败：${err.message}`)
+  }
+}
+
+/**
+ * 处理圆圈按钮点击 - 加nextTick保证DOM渲染完成再开弹窗
+ */
+const handleCircleClick = async (item) => {
   if (item.type === "log") {
+    await nextTick()
     showLogModal.value = true
   } else if (item.type === "growth") {
+    await getCategoryList()
+    await nextTick()
     showGrowthMainModal.value = true
   }
 }
 
 /**
- * 龙的成长记录主弹窗 - 打开子弹窗
+ * 打开弹窗方法 - 统一加nextTick，避免DOM未渲染触发动画卡顿
  */
-const openAddCategoryModal = () => {
+const openAddCategoryModal = async () => {
   showGrowthMainModal.value = false
+  await nextTick()
   showAddCategoryModal.value = true
 }
-const openAddNodeModal = () => {
+const openSelectCategoryTypeModal = async () => {
   showGrowthMainModal.value = false
-  showAddNodeModal.value = true
+  await nextTick()
+  showSelectTypeModal.value = true
+  selectedCategoryType.value = ''
+}
+const openDeleteCategoryModal = async () => {
+  showGrowthMainModal.value = false
+  await getCategoryList()
+  await nextTick()
+  showDeleteCategoryModal.value = true
+  deleteCategoryId.value = ''
+}
+const openDeleteNodeStep1Modal = async () => {
+  showGrowthMainModal.value = false
+  await nextTick()
+  showDeleteNodeStep1Modal.value = true
+  deleteNodeSelectedType.value = ''
+  deleteNodeSelectedCategoryId.value = ''
+  deleteNodeId.value = ''
 }
 
 /**
- * 弹窗关闭逻辑 - 关键修改：重置 categoryForm 的 type 字段
+ * 确认步骤 - 加nextTick保证弹窗切换流畅
+ */
+const confirmCategoryType = async () => {
+  if (!selectedCategoryType.value) return
+  await getCategoryList()
+  await nextTick()
+  showSelectTypeModal.value = false
+  showAddNodeModal.value = true
+}
+const confirmDeleteNodeStep1 = async () => {
+  if (!deleteNodeSelectedType.value) return
+  await getCategoryList()
+  await nextTick()
+  showDeleteNodeStep1Modal.value = false
+  showDeleteNodeStep2Modal.value = true
+}
+const confirmDeleteNodeStep2 = async () => {
+  if (!deleteNodeSelectedCategoryId.value) return
+  await getNodeListByCategoryId(deleteNodeSelectedCategoryId.value)
+  await nextTick()
+  showDeleteNodeStep2Modal.value = false
+  showDeleteNodeStep3Modal.value = true
+}
+
+/**
+ * 关闭弹窗逻辑（重置数据）
  */
 const closeGrowthMainModal = () => {
   showGrowthMainModal.value = false
 }
 const closeAddCategoryModal = () => {
   showAddCategoryModal.value = false
-  // 重置表单，包括新增的 type 字段
   categoryForm.value = { name: '', type: '' }
+}
+const closeSelectTypeModal = () => {
+  showSelectTypeModal.value = false
+  selectedCategoryType.value = ''
 }
 const closeAddNodeModal = () => {
   showAddNodeModal.value = false
-  nodeForm.value = { growthId: null, content: '', imgUrls: [] }
+  nodeForm.value = { growthId: '', content: '', imgUrls: [] }
+  selectedCategoryType.value = ''
+}
+const closeDeleteCategoryModal = () => {
+  showDeleteCategoryModal.value = false
+  deleteCategoryId.value = ''
+}
+const closeDeleteNodeStep1Modal = () => {
+  showDeleteNodeStep1Modal.value = false
+  deleteNodeSelectedType.value = ''
+}
+const closeDeleteNodeStep2Modal = () => {
+  showDeleteNodeStep2Modal.value = false
+  deleteNodeSelectedCategoryId.value = ''
+}
+const closeDeleteNodeStep3Modal = () => {
+  showDeleteNodeStep3Modal.value = false
+  deleteNodeId.value = ''
+  deleteNodeList.value = []
 }
 const closeLogModal = () => {
   showLogModal.value = false
@@ -237,7 +518,7 @@ const closeLogModal = () => {
 }
 
 /**
- * 图片上传通用方法（复用）
+ * 图片上传通用方法
  */
 const uploadImage = async (file) => {
   const validTypes = ['image/jpeg', 'image/png', 'image/gif']
@@ -296,21 +577,21 @@ const handleNodeImgError = (idx) => {
 }
 
 /**
- * 提交成长分类 - 关键修改：上传数据新增 type 参数
+ * 提交成长分类
  */
 const submitCategory = async () => {
   const { name, type } = categoryForm.value
-  // 校验：新增 type 字段非空校验
   if (!name.trim() || !type) return
   isSubmitting.value = true
   try {
     const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', {
       name,
-      type // 新增：将分类类型一同上传
+      type
     })
     if (res.data.code === 200) {
       alert('成长分类添加成功！')
       closeAddCategoryModal()
+      getCategoryList()
     } else {
       throw new Error(res.data.msg || '分类添加失败')
     }
@@ -348,6 +629,52 @@ const submitNode = async () => {
 }
 
 /**
+ * 提交删除成长分类
+ */
+const submitDeleteCategory = async () => {
+  if (!deleteCategoryId.value) return
+  if (!confirm('确认删除该分类？删除后该分类下的节点也会被删除！')) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deleteCategoryId.value}`)
+    if (res.data.code === 200) {
+      alert('分类删除成功！')
+      closeDeleteCategoryModal()
+      getCategoryList()
+    } else {
+      throw new Error(res.data.msg || '分类删除失败')
+    }
+  } catch (err) {
+    alert(`分类删除失败：${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+/**
+ * 提交删除成长节点
+ */
+const submitDeleteNode = async () => {
+  if (!deleteNodeId.value) return
+  if (!confirm('确认删除该节点？')) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
+    if (res.data.code === 200) {
+      alert('节点删除成功！')
+      closeDeleteNodeStep3Modal()
+      getNodeListByCategoryId(deleteNodeSelectedCategoryId.value)
+    } else {
+      throw new Error(res.data.msg || '节点删除失败')
+    }
+  } catch (err) {
+    alert(`节点删除失败：${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+
+/**
  * 提交龙岛日志
  */
 const submitLog = async () => {
@@ -371,6 +698,22 @@ const submitLog = async () => {
     isSubmitting.value = false
   }
 }
+
+/**
+ * 格式化时间
+ */
+const formatTime = (timeStr) => {
+  if (!timeStr) return '未知时间'
+  const date = new Date(timeStr)
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+}
+
+/**
+ * 页面初始化
+ */
+onMounted(() => {
+  getCategoryList()
+})
 </script>
 
 <style scoped>
@@ -391,7 +734,10 @@ const submitLog = async () => {
 .admin-title {
   font-size: 100px;
   font-weight: 900;
-  color: #00c0e2;
+  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
   font-family: "Ma Shan Zheng", "楷体", "STKaiti", cursive;
   letter-spacing: 10px;
   margin: 0;
@@ -410,9 +756,10 @@ const submitLog = async () => {
   flex-wrap: wrap;
   gap: 40px;
   margin-bottom: 40px;
+  box-shadow: 0 10px 30px rgba(47, 84, 150, 0.1);
 }
 
-/* 圆圈按钮样式 */
+/* 圆圈按钮样式：轻量化过渡，只保留核心反馈 */
 .circle-item {
   width: 180px;
   height: 180px;
@@ -420,6 +767,7 @@ const submitLog = async () => {
   justify-content: center;
   align-items: center;
   cursor: pointer;
+  user-select: none;
 }
 .circle-bg {
   width: 180px;
@@ -430,15 +778,20 @@ const submitLog = async () => {
   justify-content: center;
   align-items: center;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
-  transition: all 0.3s ease;
+  transition: all 0.15s ease; /* 缩短过渡时长 */
   border: 2px solid #2f5496;
   padding: 10px;
   box-sizing: border-box;
 }
 .circle-bg:hover {
-  transform: scale(1.05);
-  box-shadow: 0 8px 20px rgba(0, 0, 0, 0.2);
+  transform: scale(1.03); /* 缩小缩放比例，减少渲染 */
+  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.2);
   background-color: #f8fbff;
+  border-color: #3a66b8;
+}
+.circle-bg:active {
+  transform: scale(0.98);
+  box-shadow: 0 2px 8px rgba(47, 84, 150, 0.2);
 }
 .circle-text {
   font-size: 25px;
@@ -448,9 +801,13 @@ const submitLog = async () => {
   text-align: center;
   white-space: pre-line;
   line-height: 1.5;
+  transition: color 0.15s ease;
+}
+.circle-bg:hover .circle-text {
+  color: #3a66b8;
 }
 
-/* 弹窗遮罩 */
+/* 弹窗遮罩：极致轻量化 - 移除模糊、简化动画、时长0.1s */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -462,10 +819,12 @@ const submitLog = async () => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  backdrop-filter: blur(2px);
+  /* 删掉backdrop-filter: blur，最耗性能的属性 */
+  animation: modalFadeIn 0.1s ease forwards; /* 超短时长长动画 */
+  opacity: 0;
 }
 
-/* 弹窗容器 */
+/* 弹窗容器：纯淡入动画，无位移/缩放，渲染开销最低 */
 .modal-container {
   width: 500px;
   max-width: 90vw;
@@ -475,6 +834,15 @@ const submitLog = async () => {
   box-sizing: border-box;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   font-family: "Microsoft YaHei", "楷体", serif;
+  animation: modalFadeIn 0.12s ease forwards; /* 仅淡入，无其他变换 */
+  opacity: 0;
+  overflow: hidden;
+}
+
+/* 通用淡入动画：唯一动画，轻量化 */
+@keyframes modalFadeIn {
+  from { opacity: 0; }
+  to { opacity: 1; }
 }
 
 /* 弹窗标题 */
@@ -487,8 +855,12 @@ const submitLog = async () => {
   padding-bottom: 15px;
   border-bottom: 1px solid #e8e8e8;
 }
+.danger-title {
+  color: #ff4d4f;
+  border-bottom-color: #ffcccc;
+}
 
-/* 表单项 */
+/* 表单项：简化所有过渡，只保留聚焦边框 */
 .modal-form-item {
   margin-bottom: 25px;
 }
@@ -499,9 +871,7 @@ const submitLog = async () => {
   margin-bottom: 8px;
   font-weight: 500;
 }
-
-/* 输入框 */
-.modal-input {
+.modal-input, .modal-select, .modal-textarea {
   width: 100%;
   padding: 12px 15px;
   border: 1px solid #b3d8ff;
@@ -509,63 +879,28 @@ const submitLog = async () => {
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.3s ease;
-}
-.modal-input:focus {
-  border-color: #2f5496;
-  box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
-}
-
-/* 关键新增：下拉选择框样式 */
-.modal-select {
-  width: 100%;
-  padding: 12px 15px;
-  border: 1px solid #b3d8ff;
-  border-radius: 8px;
-  font-size: 16px;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.3s ease;
+  transition: border-color 0.1s ease; /* 仅边框过渡，无其他 */
   background-color: #fff;
+}
+.modal-select {
   cursor: pointer;
 }
-.modal-select:focus {
-  border-color: #2f5496;
-  box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
-}
-.modal-select option {
-  font-size: 16px;
-  padding: 10px 0;
-}
-
-/* 文本域 */
 .modal-textarea {
-  width: 100%;
-  height: auto;
-  padding: 12px 15px;
-  border: 1px solid #b3d8ff;
-  border-radius: 8px;
-  font-size: 16px;
   font-family: "Microsoft YaHei", "楷体", serif;
-  outline: none;
   resize: vertical;
-  box-sizing: border-box;
-  transition: border-color 0.3s ease;
 }
-.modal-textarea:focus {
+/* 聚焦仅变边框色，删掉阴影/背景变化，减少渲染 */
+.modal-input:focus, .modal-select:focus, .modal-textarea:focus {
   border-color: #2f5496;
-  box-shadow: 0 0 0 2px rgba(47, 84, 150, 0.1);
 }
 
-/* 文件输入 */
+/* 文件输入 + 上传提示 */
 .modal-file-input {
   font-size: 16px;
   font-family: "Microsoft YaHei", "楷体", serif;
   padding: 8px 0;
   color: #666;
 }
-
-/* 上传提示 */
 .upload-tip {
   font-size: 14px;
   color: #999;
@@ -573,7 +908,7 @@ const submitLog = async () => {
   margin-bottom: 0;
 }
 
-/* 图片预览 */
+/* 图片预览：轻量化，无多余过渡 */
 .upload-preview {
   margin-top: 10px;
   display: flex;
@@ -609,13 +944,13 @@ const submitLog = async () => {
   display: flex;
   justify-content: center;
   align-items: center;
-  transition: background-color 0.3s ease;
+  transition: background-color 0.1s ease;
 }
 .remove-img-btn:hover {
   background-color: #ff7875;
 }
 
-/* 按钮组 */
+/* 按钮组：轻量化过渡，缩短时长，仅背景/阴影变化 */
 .modal-btn-group {
   display: flex;
   justify-content: center;
@@ -628,7 +963,7 @@ const submitLog = async () => {
   gap: 15px;
   margin-bottom: 20px;
 }
-.growth-sub-btn {
+.growth-sub-btn, .modal-submit-btn {
   padding: 12px 0;
   background-color: #2f5496;
   color: #fff;
@@ -636,30 +971,37 @@ const submitLog = async () => {
   border-radius: 8px;
   font-size: 18px;
   cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-.growth-sub-btn:hover {
-  background-color: #3a66b8;
+  transition: all 0.1s ease;
+  user-select: none;
+  box-shadow: 0 2px 6px rgba(47, 84, 150, 0.2);
 }
 .modal-submit-btn {
   padding: 10px 30px;
-  background-color: #2f5496;
-  color: #ffffff;
-  border: none;
-  border-radius: 8px;
-  font-size: 18px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
   display: flex;
   align-items: center;
   gap: 8px;
 }
-.modal-submit-btn:disabled {
+.growth-sub-btn.danger, .modal-submit-btn.danger-btn {
+  background-color: #ff4d4f;
+  box-shadow: 0 2px 6px rgba(255, 77, 79, 0.2);
+}
+.growth-sub-btn:hover, .modal-submit-btn:not(:disabled):hover {
+  background-color: #3a66b8;
+}
+.growth-sub-btn.danger:hover, .modal-submit-btn.danger-btn:not(:disabled):hover {
+  background-color: #ff7875;
+}
+/* 按压仅下移1px，无其他变换 */
+.growth-sub-btn:active, .modal-submit-btn:not(:disabled):active {
+  transform: translateY(1px);
+  box-shadow: none;
+}
+/* 禁用态直接去掉所有效果 */
+.growth-sub-btn:disabled, .modal-submit-btn:disabled {
   background-color: #b3d8ff;
   cursor: not-allowed;
-}
-.modal-submit-btn:not(:disabled):hover {
-  background-color: #3a66b8;
+  box-shadow: none;
+  transform: none;
 }
 .modal-close-btn {
   padding: 10px 30px;
@@ -669,18 +1011,23 @@ const submitLog = async () => {
   border-radius: 8px;
   font-size: 18px;
   cursor: pointer;
-  transition: all 0.3s ease;
+  transition: all 0.1s ease;
+  user-select: none;
+}
+.modal-close-btn:hover {
+  background-color: #f0f0f0;
+  border-color: #ccc;
+}
+.modal-close-btn:active {
+  transform: translateY(1px);
 }
 .modal-close-btn:disabled {
   opacity: 0.6;
   cursor: not-allowed;
-}
-.modal-close-btn:not(:disabled):hover {
-  background-color: #f0f0f0;
-  border-color: #ccc;
+  transform: none;
 }
 
-/* 加载图标 */
+/* 加载图标：保留基础旋转 */
 .loading-icon {
   animation: rotate 1.5s linear infinite;
 }
@@ -689,10 +1036,10 @@ const submitLog = async () => {
   to { transform: rotate(360deg); }
 }
 
-/* 响应式适配 - 关键新增：下拉框移动端适配 */
+/* 响应式适配：同步轻量化 */
 @media (max-width: 768px) {
   .admin-title { font-size: 36px; }
-  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; }
+  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; box-shadow: 0 5px 15px rgba(47, 84, 150, 0.1); }
   .circle-item { width: 120px; height: 120px; }
   .circle-bg { width: 120px; height: 120px; }
   .circle-text { font-size: 18px; }
@@ -701,7 +1048,6 @@ const submitLog = async () => {
   .modal-btn-group { gap: 15px; }
   .modal-submit-btn, .modal-close-btn { padding: 8px 20px; font-size: 16px; }
   .growth-sub-btn { font-size: 16px; }
-  /* 下拉框移动端适配 */
   .modal-select { padding: 10px 12px; font-size: 14px; }
 }
 </style>

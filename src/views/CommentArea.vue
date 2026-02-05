@@ -3,11 +3,11 @@
     <!-- 页面标题 -->
     <h1 class="comment-title">🐉 龙岛聚会 · 评论区</h1>
 
-    <!-- 评论表单（新增：IP超限后隐藏表单，显示提示） -->
+    <!-- 评论表单（IP超限后隐藏表单，显示提示） -->
     <div class="comment-form-wrap" v-if="!ipLimitExceeded">
       <h3 class="form-title">留下你的足迹</h3>
       <form @submit.prevent="handleSubmit" class="comment-form">
-        <!-- 原有昵称输入项 -->
+        <!-- 昵称输入项（每次评论都可填写，无登录功能） -->
         <div class="form-item">
           <label class="form-label">昵称：</label>
           <input 
@@ -19,7 +19,7 @@
           >
         </div>
 
-        <!-- 新增：联系方式输入框 -->
+        <!-- 联系方式输入框 -->
         <div class="form-item">
           <label class="form-label">联系方式：</label>
           <input 
@@ -28,10 +28,10 @@
             placeholder="微信/QQ/手机号等（可选，仅用于后台联系）" 
             class="form-input"
           >
-          <small class="contact-tip">（评论区不显示）</small> <!-- 标注提示 -->
+          <small class="contact-tip">（评论区不显示）</small>
         </div>
 
-        <!-- 原有留言输入项 -->
+        <!-- 留言输入项 -->
         <div class="form-item">
           <label class="form-label">留言：</label>
           <textarea 
@@ -43,7 +43,7 @@
           ></textarea>
         </div>
 
-        <!-- 新增：滑块验证码 -->
+        <!-- 滑块验证码 -->
         <div class="slider-verify-wrap" v-if="showSliderVerify">
           <div class="slider-verify-title">请完成滑块验证</div>
           <div class="slider-verify-box" ref="sliderBox">
@@ -63,7 +63,7 @@
       </form>
     </div>
 
-    <!-- 新增：IP每小时超限提示 -->
+    <!-- IP每小时超限提示 -->
     <div class="ip-limit-tip" v-else>
       📌 当前IP每小时评论次数已达上限（5次），请1小时后再试～
     </div>
@@ -74,12 +74,12 @@
       <!-- 评论项 -->
       <div class="comment-item" v-for="(item, idx) in commentList" :key="idx">
         <div class="item-header">
-          <span class="item-username">{{ item.username }}</span>
-          <span class="item-time">{{ formatTime(item.time) }}</span> <!-- 新增：时间格式化优化 -->
+          <span class="item-username">{{ item.name }}</span>
+          <span class="item-time">{{ formatTime(item.create_time) }}</span>
         </div>
         <div class="item-content">{{ item.content }}</div>
         
-        <!-- 优化：安全判断reply是否为有效内容（兼容null、空字符串） -->
+        <!-- 安全判断reply是否为有效内容 -->
         <div class="item-reply" v-if="getIsValidReply(item.reply)">
           <span class="reply-author">小龙回复：</span>
           <span class="reply-content">{{ item.reply }}</span>
@@ -90,45 +90,25 @@
         暂无留言，快来抢沙发～
       </div>
     </div>
-
-    <!-- 自定义中奖结果弹窗 -->
-    <div class="lottery-modal-mask" v-if="showLotteryModal">
-      <div class="lottery-modal">
-        <div class="modal-icon" :class="{ 'win-icon': lotteryResult.isWinner, 'lose-icon': !lotteryResult.isWinner }">
-          {{ lotteryResult.isWinner ? '🎉' : '😢' }}
-        </div>
-        <div class="modal-title">
-          {{ lotteryResult.isWinner ? '恭喜中奖！' : '本次未中奖' }}
-        </div>
-        <div class="modal-desc">
-          {{ 
-            lotteryResult.isWinner 
-              ? `你中得了【${lotteryResult.prize}】！请通过联系方式联系小龙领取～` 
-              : '下次评论还有机会，加油哦～' 
-          }}
-        </div>
-        <button class="modal-confirm-btn" @click="showLotteryModal = false">确定</button>
-      </div>
-    </div>
   </div>
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, readonly } from 'vue'
+import { ref, onMounted, onUnmounted } from 'vue'
 import axios from 'axios'
 
-// 修正：后端接口地址（根据你的实际后端地址调整，本地开发可改为 localhost:端口）
+// 后端接口地址
 axios.defaults.baseURL = 'https://xiaolongya.cn/blog'
-// 新增：请求超时时间，避免网络卡顿无响应
+// 请求超时时间
 axios.defaults.timeout = 10000
 
-// 表单数据
-const username = ref('')
-const contact = ref('')
-const content = ref('')
-const commentList = ref([])
+// 表单数据（和数据库字段对应：name/contact/content）
+const username = ref('') // 对应数据库的name字段
+const contact = ref('') // 对应数据库的contact字段
+const content = ref('') // 对应数据库的content字段
+const commentList = ref([]) // 存储评论列表
 
-// 新增：IP限制相关变量
+// IP限制相关变量
 const ipLimitExceeded = ref(false) // 是否超出IP每小时限制
 
 // 滑块验证码相关变量
@@ -139,26 +119,12 @@ const isDragging = ref(false) // 是否正在拖动
 const sliderWidth = ref(0) // 滑块容器宽度
 const btnWidth = ref(40) // 滑块按钮宽度
 
-// 抽奖结果弹窗控制
-const showLotteryModal = ref(false)
-const lotteryResult = ref({ isWinner: false, prize: '', status: '' }) // 新增：存储对应后端的status值
+// 防重复提交
+const isSubmitting = ref(false) // 防止重复提交
 
-// 防篡改相关配置（保留签名+提交锁，防止恶意刷奖）
-const isSubmitting = ref(false) // 防止重复提交（避免恶意快速多次触发）
-const LOTTERY_SIGN = readonly('dragon_lottery_20260203') // 抽奖签名（只读，无法被篡改）
-const LOTTERY_RULE = readonly({ // 抽奖规则（只读，固定概率区间）
-  oneYuan: 10, // 1元红包概率 10%
-  twoYuan: 5,  // 2元红包概率 5%
-  noPrize: 85  // 未中奖概率 85%
-})
-// 新增：抽奖结果与后端status的映射关系（统一管理，方便维护）
-const PRIZE_TO_STATUS = readonly({
-  '1元红包': '中奖一元',
-  '2元红包': '中奖两元',
-  '': '未中奖'
-})
-
-// 新增：时间格式化工具（优化后端返回的时间显示）
+/**
+ * 时间格式化工具（对应数据库的create_time字段）
+ */
 const formatTime = (timeStr) => {
   if (!timeStr) return '未知时间'
   try {
@@ -176,7 +142,9 @@ const formatTime = (timeStr) => {
   }
 }
 
-// 新增：安全判断reply是否为有效内容（兼容null、undefined、空字符串）
+/**
+ * 安全判断reply是否为有效内容（对应数据库的reply字段）
+ */
 const getIsValidReply = (reply) => {
   // 步骤：1. 排除null/undefined 2. 转为字符串 3. 去除首尾空格 4. 判断是否非空
   return !!((reply ?? '').toString().trim())
@@ -184,27 +152,23 @@ const getIsValidReply = (reply) => {
 
 // 页面加载逻辑
 onMounted(async () => {
-  const savedName = localStorage.getItem('dragonCommentName')
-  if (savedName) {
-    username.value = savedName
-  }
-
   // 初始化滑块宽度
   if (sliderBox.value) {
     sliderWidth.value = sliderBox.value.offsetWidth
   }
 
   try {
+    // 获取评论列表（和数据库字段对应：name/content/create_time/reply）
     const res = await axios.get('/comment/list', {
       params: { articleId: 1 }
     })
     if (res.data.code === 200) {
       commentList.value = res.data.data.map(item => ({
         id: item.id,
-        username: item.name,
-        content: item.content,
-        time: item.createTime,
-        reply: item.reply ?? '' // 优化：使用空值合并运算符，将null转为空字符串，避免后续报错
+        name: item.name, // 对应数据库的name字段
+        content: item.content, // 对应数据库的content字段
+        create_time: item.create_time, // 对应数据库的create_time字段
+        reply: item.reply ?? '' // 对应数据库的reply字段（兼容null）
       }))
     } else {
       alert('获取评论失败：' + res.data.msg)
@@ -214,7 +178,7 @@ onMounted(async () => {
     alert('网络异常，无法加载评论～')
   }
 
-  // 禁用控制台作弊相关操作（增加篡改难度）
+  // 禁用控制台作弊相关操作
   disableConsoleCheat()
 })
 
@@ -232,39 +196,45 @@ onUnmounted(() => {
   window.removeEventListener('touchend', endDrag)
 })
 
-// 禁用控制台作弊相关操作（增加篡改难度）
+/**
+ * 禁用控制台作弊相关操作
+ */
 const disableConsoleCheat = () => {
-  // 禁止重写抽奖相关函数（简单拦截）
+  // 禁止重写相关函数
   if (window.console && window.console.log) {
     const originalLog = window.console.log
     window.console.log = function (...args) {
-      // 检测是否包含篡改抽奖的关键字
-      const cheatKeywords = ['commentLottery', 'lotteryResult', 'LOTTERY_SIGN', 'PRIZE_TO_STATUS']
+      // 检测是否包含篡改关键字
+      const cheatKeywords = ['dragonCommentName', 'submitComment', 'ipLimitExceeded']
       const isCheat = args.some(arg => {
         return cheatKeywords.some(keyword => String(arg).includes(keyword))
       })
       if (isCheat) {
-        originalLog('🚫 禁止非法篡改抽奖逻辑！')
+        originalLog('🚫 禁止非法篡改评论逻辑！')
         return
       }
       originalLog.apply(this, args)
     }
   }
 
-  // 禁止右键查看源码（可选，进一步增加门槛）
+  // 禁止右键查看源码
   document.addEventListener('contextmenu', (e) => {
     e.preventDefault()
   })
 }
 
-// 更新滑块容器宽度
+/**
+ * 更新滑块容器宽度
+ */
 const updateSliderWidth = () => {
   if (sliderBox.value) {
     sliderWidth.value = sliderBox.value.offsetWidth
   }
 }
 
-// 开始拖动滑块
+/**
+ * 开始拖动滑块
+ */
 const startDrag = (e) => {
   isDragging.value = true
   sliderLeft.value = 0 // 重置滑块位置
@@ -279,7 +249,9 @@ const startDrag = (e) => {
   e.preventDefault()
 }
 
-// 拖动过程中
+/**
+ * 拖动过程中
+ */
 const handleDrag = (e) => {
   if (!isDragging.value || !sliderBox.value) return
 
@@ -301,7 +273,9 @@ const handleDrag = (e) => {
   sliderLeft.value = left
 }
 
-// 结束拖动
+/**
+ * 结束拖动
+ */
 const endDrag = () => {
   if (!isDragging.value) return
   isDragging.value = false
@@ -324,38 +298,81 @@ const endDrag = () => {
   }
 }
 
-// 防篡改抽奖逻辑（签名验证+只读规则+固定随机数计算，新增映射status）
-const commentLottery = () => {
-  // 1. 签名验证（防止函数被篡改替换）
-  if (LOTTERY_SIGN !== 'dragon_lottery_20260203') {
-    return { isWinner: false, prize: '', status: PRIZE_TO_STATUS[''] }
+/**
+ * 提交评论（和数据库字段完全对应）
+ */
+const submitComment = async () => {
+  // 防止重复提交
+  if (isSubmitting.value || ipLimitExceeded.value) return
+  isSubmitting.value = true
+
+  // 构造请求参数（和数据库字段对应：name/contact/content）
+  const commentData = {
+    name: username.value.trim(), // 对应数据库的name字段
+    contact: contact.value.trim(), // 对应数据库的contact字段
+    content: content.value.trim(), // 对应数据库的content字段
+    articleId: 1
   }
 
-  // 2. 固定随机数生成逻辑（避免被篡改随机数来源）
-  const randomNum = Math.floor(Math.random() * 100)
-  let prize = ''
-  let isWinner = false
+  try {
+    const res = await axios.post('/comment/upload', commentData)
+    // 统一处理后端返回结果
+    if (res.data && res.data.code === 200) {
+      // 显示评论成功提示
+      alert('✅ 评论提交成功！感谢你的留言～')
 
-  // 3. 使用只读规则判断（避免概率被篡改）
-  if (randomNum < LOTTERY_RULE.oneYuan) {
-    prize = '1元红包'
-    isWinner = true
-  } else if (randomNum < LOTTERY_RULE.oneYuan + LOTTERY_RULE.twoYuan) {
-    prize = '2元红包'
-    isWinner = true
+      // 清空表单（昵称、联系方式、留言都清空，因为无登录功能，每次都需填写）
+      username.value = ''
+      contact.value = ''
+      content.value = ''
+      // 隐藏滑块验证
+      showSliderVerify.value = false
+      // 重新获取评论列表，更新页面
+      const listRes = await axios.get('/comment/list', { params: { articleId: 1 } })
+      if (listRes.data.code === 200) {
+        commentList.value = listRes.data.data.map(item => ({
+          id: item.id,
+          name: item.name,
+          content: item.content,
+          create_time: item.create_time,
+          reply: item.reply ?? ''
+        }))
+      }
+    } else {
+      // 处理后端返回的错误提示
+      const errorMsg = res.data?.msg || '提交失败，请稍后再试'
+      alert(`❌ ${errorMsg}`)
+      // 判断是否为IP超限
+      if (res.data?.code === 403) {
+        ipLimitExceeded.value = true // 标记超限，隐藏表单
+      }
+      // 隐藏滑块验证
+      showSliderVerify.value = false
+    }
+  } catch (error) {
+    console.error('提交评论失败：', error)
+    // 更友好的错误提示
+    const errorMsg = error.response?.data?.msg || '网络异常，留言提交失败～'
+    alert(`❌ ${errorMsg}`)
+    // 若后端返回403，标记超限
+    if (error.response?.status === 403 || error.response?.data?.code === 403) {
+      ipLimitExceeded.value = true
+    }
+    // 隐藏滑块验证
+    showSliderVerify.value = false
+  } finally {
+    // 解除提交锁
+    isSubmitting.value = false
   }
-
-  // 4. 新增：映射后端对应的status值
-  const status = PRIZE_TO_STATUS[prize]
-
-  return { isWinner, prize, status }
 }
 
-// 处理提交（先显示滑块验证）
+/**
+ * 处理提交（先显示滑块验证）
+ */
 const handleSubmit = () => {
   // 1. 先校验昵称和留言是否为空
   if (!username.value.trim() || !content.value.trim()) {
-    alert('昵称和留言不能为空哦～')
+    alert('⚠️ 昵称和留言不能为空哦～')
     return
   }
 
@@ -371,77 +388,6 @@ const handleSubmit = () => {
     }
   }, 100)
 }
-
-// 提交评论（验证成功后执行，新增status参数提交 + 处理IP超限提示）
-const submitComment = async () => {
-  // 防止重复提交（避免恶意快速多次提交）
-  if (isSubmitting.value || ipLimitExceeded.value) return
-  isSubmitting.value = true
-
-  // 先执行抽奖，获取status（必须先抽奖，才能拿到对应的status值）
-  const lotteryRes = commentLottery()
-  lotteryResult.value = lotteryRes
-
-  // 构造请求参数（新增：status字段，传递给后端）
-  const commentData = {
-    name: username.value.trim(),
-    contact: contact.value.trim(),
-    content: content.value.trim(),
-    articleId: 1,
-    status: lotteryRes.status // 新增：传递抽奖对应的status，存入后端数据库
-  }
-
-  try {
-    const res = await axios.post('/comment/upload', commentData)
-    // 新增：统一处理后端返回结果（适配后端Result格式）
-    if (res.data && res.data.code === 200) {
-      // 显示自定义中奖弹窗
-      showLotteryModal.value = true
-
-      localStorage.setItem('dragonCommentName', username.value.trim())
-      // 清空表单（留言框清空，昵称保留，方便再次评论）
-      contact.value = ''
-      content.value = ''
-      // 隐藏滑块验证
-      showSliderVerify.value = false
-      // 重新获取评论列表
-      const listRes = await axios.get('/comment/list', { params: { articleId: 1 } })
-      if (listRes.data.code === 200) {
-        commentList.value = listRes.data.data.map(item => ({
-          id: item.id,
-          username: item.name,
-          content: item.content,
-          time: item.createTime,
-          reply: item.reply ?? '' // 优化：同样将null转为空字符串
-        }))
-      }
-    } else {
-      // 新增：处理后端返回的错误提示（含IP超限）
-      const errorMsg = res.data?.msg || '提交失败'
-      alert(errorMsg)
-      // 判断是否为IP超限（403状态码）
-      if (res.data?.code === 403) {
-        ipLimitExceeded.value = true // 标记超限，隐藏表单
-      }
-      // 隐藏滑块验证
-      showSliderVerify.value = false
-    }
-  } catch (error) {
-    console.error('提交评论失败：', error)
-    // 新增：更友好的错误提示
-    const errorMsg = error.response?.data?.msg || '网络异常，留言提交失败～'
-    alert(errorMsg)
-    // 若后端返回403，标记超限
-    if (error.response?.status === 403 || error.response?.data?.code === 403) {
-      ipLimitExceeded.value = true
-    }
-    // 隐藏滑块验证
-    showSliderVerify.value = false
-  } finally {
-    // 解除提交锁
-    isSubmitting.value = false
-  }
-}
 </script>
 
 <style scoped>
@@ -452,16 +398,18 @@ const submitComment = async () => {
   margin: 40px auto;
   padding: 0 20px;
   box-sizing: border-box;
+  font-family: "Ma Shan Zheng", "楷体", "KaiTi", "STKaiti", cursive, serif; /* 统一全站字体 */
 }
 
 /* 标题样式（和主页风格统一） */
 .comment-title {
   font-size: 56px;
-  color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  color: #00c0e2;
   text-align: center;
   margin-bottom: 40px;
   letter-spacing: 8px;
+  font-weight: 900;
+  text-shadow: 1px 1px 2px rgba(47, 84, 150, 0.1);
 }
 
 /* 表单区域 */
@@ -471,9 +419,10 @@ const submitComment = async () => {
   padding: 30px;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
   margin-bottom: 40px;
+  border: 2px solid rgba(179, 216, 255, 0.5);
 }
 
-/* 新增：IP超限提示样式 */
+/* IP超限提示样式 */
 .ip-limit-tip {
   background-color: #fff;
   border-radius: 24px;
@@ -483,16 +432,15 @@ const submitComment = async () => {
   text-align: center;
   font-size: 20px;
   color: #e63946;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  border: 2px solid rgba(230, 57, 70, 0.2);
 }
 
 .form-title {
   font-size: 32px;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   margin-bottom: 20px;
-  /* 核心修改：让"留下你的足迹"居中显示 */
   text-align: center;
+  font-weight: 700;
 }
 
 .form-item {
@@ -503,8 +451,8 @@ const submitComment = async () => {
   display: block;
   font-size: 20px;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   margin-bottom: 8px;
+  font-weight: 500;
 }
 
 .form-input, .form-textarea {
@@ -513,12 +461,20 @@ const submitComment = async () => {
   border: 2px solid #b3d8ff;
   border-radius: 12px;
   font-size: 16px;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-family: "楷体", "KaiTi", "STKaiti", serif; /* 输入框统一楷体 */
   box-sizing: border-box;
+  transition: border-color 0.15s ease;
+}
+
+.form-input:focus, .form-textarea:focus {
+  outline: none;
+  border-color: #2f5496;
+  box-shadow: 0 0 0 3px rgba(47, 84, 150, 0.1);
 }
 
 .form-textarea {
   resize: none;
+  line-height: 1.6;
 }
 
 .submit-btn {
@@ -528,18 +484,28 @@ const submitComment = async () => {
   border: none;
   border-radius: 24px;
   font-size: 20px;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   cursor: pointer;
-  transition: background-color 0.3s ease;
+  transition: all 0.15s ease;
+  display: block;
+  margin: 0 auto;
+  font-weight: 500;
 }
 
 .submit-btn:disabled {
   background-color: #89a4d4;
   cursor: not-allowed;
+  transform: none;
 }
 
 .submit-btn:hover:not(:disabled) {
   background-color: #1f3a6b;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(47, 84, 150, 0.2);
+}
+
+.submit-btn:active:not(:disabled) {
+  transform: translateY(0);
+  box-shadow: 0 2px 4px rgba(47, 84, 150, 0.2);
 }
 
 /* 评论列表 */
@@ -548,18 +514,30 @@ const submitComment = async () => {
   border-radius: 24px;
   padding: 30px;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
+  border: 2px solid rgba(179, 216, 255, 0.5);
 }
 
 .list-title {
   font-size: 32px;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   margin-bottom: 20px;
+  font-weight: 700;
+  text-align: center;
 }
 
 .comment-item {
   padding: 20px 0;
   border-bottom: 1px dashed #b3d8ff;
+  transition: background-color 0.15s ease;
+}
+
+.comment-item:hover {
+  background-color: rgba(179, 216, 255, 0.05);
+  padding-left: 10px;
+  padding-right: 10px;
+  border-radius: 12px;
+  margin-left: -10px;
+  margin-right: -10px;
 }
 
 .comment-item:last-child {
@@ -569,6 +547,7 @@ const submitComment = async () => {
 .item-header {
   display: flex;
   justify-content: space-between;
+  align-items: center;
   margin-bottom: 10px;
 }
 
@@ -576,7 +555,6 @@ const submitComment = async () => {
   font-size: 20px;
   font-weight: bold;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
 }
 
 .item-time {
@@ -588,21 +566,24 @@ const submitComment = async () => {
 .item-content {
   font-size: 18px;
   color: #333;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   line-height: 1.6;
-  margin-bottom: 12px; /* 新增：和回复区域拉开间距 */
+  margin-bottom: 12px;
+  padding: 8px 0;
 }
 
-/* 新增：小龙回复区域样式 */
+/* 小龙回复区域样式 */
 .item-reply {
-  background-color: #f0f0f0; /* 浅灰色背景，凸显回复 */
+  background-color: rgba(179, 216, 255, 0.1); /* 统一浅蓝背景，贴合全站风格 */
   padding: 12px 16px;
   border-radius: 8px;
   font-size: 16px;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   line-height: 1.5;
-  /* 增加显隐性，确保有效回复一眼可见 */
   border-left: 3px solid #2f5496;
+  transition: background-color 0.15s ease;
+}
+
+.comment-item:hover .item-reply {
+  background-color: rgba(179, 216, 255, 0.2);
 }
 
 .reply-author {
@@ -619,8 +600,8 @@ const submitComment = async () => {
   text-align: center;
   font-size: 20px;
   color: #999;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  padding: 20px 0;
+  padding: 40px 0;
+  font-weight: 500;
 }
 
 /* 联系方式提示文字样式 */
@@ -642,8 +623,8 @@ const submitComment = async () => {
 .slider-verify-title {
   font-size: 16px;
   color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
   margin-bottom: 8px;
+  font-weight: 500;
 }
 
 .slider-verify-box {
@@ -688,85 +669,15 @@ const submitComment = async () => {
 
 .slider-verify-btn:active {
   cursor: grabbing;
-}
-
-/* 自定义中奖结果弹窗样式（显眼且风格统一） */
-.lottery-modal-mask {
-  position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background: rgba(0, 0, 0, 0.6);
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  z-index: 9999;
-}
-
-.lottery-modal {
-  width: 80%;
-  max-width: 400px;
-  background: #fff;
-  border-radius: 24px;
-  padding: 30px;
-  text-align: center;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-}
-
-.modal-icon {
-  font-size: 60px;
-  margin-bottom: 20px;
-}
-
-.win-icon {
-  color: #ffd700;
-  animation: bounce 0.5s ease;
-}
-
-.lose-icon {
-  color: #999;
-}
-
-.modal-title {
-  font-size: 28px;
-  font-weight: bold;
-  margin-bottom: 15px;
-  color: #2f5496;
-}
-
-.modal-desc {
-  font-size: 18px;
-  color: #666;
-  margin-bottom: 25px;
-  line-height: 1.6;
-}
-
-.modal-confirm-btn {
-  padding: 12px 30px;
-  background-color: #2f5496;
-  color: #fff;
-  border: none;
-  border-radius: 24px;
-  font-size: 20px;
-  cursor: pointer;
-  transition: background-color 0.3s ease;
-}
-
-.modal-confirm-btn:hover {
   background-color: #1f3a6b;
-}
-
-/* 中奖弹窗动画 */
-@keyframes bounce {
-  0% { transform: scale(0.8); }
-  50% { transform: scale(1.2); }
-  100% { transform: scale(1); }
 }
 
 /* 移动端适配 */
 @media (max-width: 768px) {
+  .comment-area {
+    margin: 20px auto;
+  }
+
   .comment-title {
     font-size: 32px;
     letter-spacing: 4px;
@@ -776,11 +687,11 @@ const submitComment = async () => {
   .comment-form-wrap, .comment-list-wrap, .ip-limit-tip {
     padding: 20px;
     border-radius: 16px;
+    border-width: 1px;
   }
 
   .form-title, .list-title {
     font-size: 24px;
-    /* 移动端同步居中，保持风格统一 */
     text-align: center;
   }
 
@@ -791,6 +702,7 @@ const submitComment = async () => {
   .form-input, .form-textarea {
     padding: 10px 12px;
     font-size: 14px;
+    border-width: 1px;
   }
 
   .submit-btn {
@@ -804,10 +716,10 @@ const submitComment = async () => {
 
   .item-content {
     font-size: 16px;
-    margin-bottom: 10px; /* 移动端同步调整和回复的间距 */
+    margin-bottom: 10px;
   }
 
-  /* 新增：移动端回复区域样式适配 */
+  /* 移动端回复区域样式适配 */
   .item-reply {
     padding: 10px 14px;
     font-size: 14px;
@@ -825,6 +737,7 @@ const submitComment = async () => {
 
   .slider-verify-box {
     height: 36px;
+    border-width: 1px;
   }
 
   .slider-verify-btn {
@@ -832,31 +745,14 @@ const submitComment = async () => {
     font-size: 16px;
   }
 
-  /* 中奖弹窗移动端适配 */
-  .lottery-modal {
-    padding: 20px;
-  }
-
-  .modal-icon {
-    font-size: 40px;
-  }
-
-  .modal-title {
-    font-size: 22px;
-  }
-
-  .modal-desc {
-    font-size: 16px;
-  }
-
-  .modal-confirm-btn {
-    padding: 10px 20px;
-    font-size: 18px;
-  }
-
   /* IP超限提示移动端适配 */
   .ip-limit-tip {
     font-size: 18px;
+  }
+
+  .empty-tip {
+    font-size: 18px;
+    padding: 20px 0;
   }
 }
 </style>
