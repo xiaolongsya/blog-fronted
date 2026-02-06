@@ -1,4 +1,3 @@
-<!-- DragonDevelopment.vue -->
 <template>
   <div class="development-page">
     <!-- 页面顶部标题 -->
@@ -30,8 +29,8 @@
     <div class="update-item" v-for="(item, idx) in updateList" :key="idx">
       <!-- 节点左上角的时间（放大加粗） -->
       <div class="item-time">{{ item.time }}</div>
-      <!-- 文字内容 -->
-      <div class="item-content">{{ item.content }}</div>
+      <!-- 文字内容：v-html绑定格式化后的内容，处理回车键换行 -->
+      <div class="item-content" v-html="formatContent(item.content)"></div>
       <!-- 可选图片（缩小排列，点击放大） -->
       <div class="item-image-wrap" v-if="item.images.length">
         <img 
@@ -71,6 +70,22 @@ const scale = ref(1) // 缩放比例
 const lastDistance = ref(0) // 上一次双指距离
 const startPos = ref({ x: 0, y: 0 }) // 拖拽起始位置
 const translatePos = ref({ x: 0, y: 0 }) // 图片偏移位置
+
+// 核心新增：处理content换行，同时做XSS防护（转义特殊字符）
+const formatContent = (content) => {
+  if (!content) return ''
+  // 第一步：转义HTML特殊字符，防止恶意标签注入（生产环境必做）
+  const escapeHtml = (str) => {
+    return str
+      .replace(/&/g, '&amp;')
+      .replace(/</g, '&lt;')
+      .replace(/>/g, '&gt;')
+      .replace(/"/g, '&quot;')
+      .replace(/'/g, '&#039;')
+  }
+  // 第二步：先转义再替换换行符\n为<br>，保证浏览器识别换行
+  return escapeHtml(content).replace(/\n/g, '<br>')
+}
 
 const fetchUpdateList = async () => {
   try {
@@ -267,6 +282,7 @@ const closeBigImage = () => {
   font-size: 22px; /* 内容字体加大 */
   color: #333;
   line-height: 1.8; /* 行高增加以提升可读性 */
+  white-space: pre-line; /* 兜底：兼容意外的换行处理，保留空白行 */
 }
 
 .item-image-wrap {

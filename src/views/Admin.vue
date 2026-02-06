@@ -20,7 +20,7 @@
       </div>
     </section>
 
-    <!-- 1. 龙的成长记录主弹窗（新增删除按钮） -->
+    <!-- 1. 龙的成长记录主弹窗 -->
     <div class="modal-mask" v-if="showGrowthMainModal" @click="closeGrowthMainModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">龙的成长记录</div>
@@ -97,8 +97,9 @@
       </div>
     </div>
 
-    <!-- 4. 第二步：选择具体分类弹窗（添加节点） -->
-    <div class="modal-mask" v-if="showAddNodeModal" @click="closeAddNodeModal">
+    <!-- 4. 第二步：选择具体分类弹窗（添加节点）【核心修改：双图片按钮】 -->
+    <!-- 关键修改：遮罩点击改为confirmCloseAddNodeModal（拦截逻辑） -->
+    <div class="modal-mask" v-if="showAddNodeModal" @click="confirmCloseAddNodeModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">添加成长节点（{{ selectedCategoryType }}板块）</div>
         <div class="modal-form-item">
@@ -119,28 +120,44 @@
         </div>
         <div class="modal-form-item">
           <label>节点内容：</label>
+          <!-- 新增ref：获取文本框光标位置 -->
           <textarea 
+            ref="nodeContentInputRef"
             v-model="nodeForm.content" 
-            placeholder="请输入节点内容"
+            placeholder="请输入节点内容，图片嵌入会插入到光标位置"
             class="modal-textarea"
-            rows="3"
+            rows="4"
           ></textarea>
+          <!-- 核心新增：图片嵌入 + 图片上传 双按钮 -->
+          <div class="img-double-btn" style="display: flex; gap: 12px; margin-top: 10px;">
+            <button class="img-btn insert-btn" @click="triggerInsertImg">图片嵌入</button>
+            <button class="img-btn upload-btn" @click="triggerUploadImg">图片上传</button>
+            <!-- 隐藏的文件选择框：分别对应嵌入/上传 -->
+            <input 
+              ref="insertImgFileInput"
+              type="file" 
+              accept="image/jpeg,image/png,image/gif"
+              style="display: none"
+              @change="handleInsertImgUpload"
+            />
+            <input 
+              ref="uploadImgFileInput"
+              type="file" 
+              accept="image/jpeg,image/png,image/gif"
+              style="display: none"
+              @change="handleUploadImgUpload"
+            />
+          </div>
         </div>
-        <div class="modal-form-item">
-          <label>上传图片（可选）：</label>
-          <input 
-            type="file" 
-            accept="image/jpeg,image/png,image/gif"
-            @change="handleNodeImageUpload"
-            class="modal-file-input"
-          />
-          <div class="upload-preview" v-if="nodeForm.imgUrls.length > 0">
+        <!-- 保留：底部图片预览（仅展示「图片上传」的图片） -->
+        <div class="modal-form-item" v-if="nodeForm.imgUrls.length > 0">
+          <label>底部图片预览（图片上传）：</label>
+          <div class="upload-preview">
             <div v-for="(url, idx) in nodeForm.imgUrls" :key="idx" class="preview-item">
-              <img :src="url" alt="预览图" class="preview-img" @error="handleNodeImgError(idx)" />
+              <img :src="url" alt="底部预览图" class="preview-img" @error="handleNodeImgError(idx)" />
               <button @click="removeNodeImage(idx)" class="remove-img-btn">×</button>
             </div>
           </div>
-          <p class="upload-tip" v-if="nodeForm.imgUrls.length === 0">暂未上传图片，支持JPG/PNG/GIF格式</p>
         </div>
         <div class="modal-btn-group">
           <button 
@@ -365,6 +382,11 @@ const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
 const deleteCategoryId = ref('')
 const deleteNodeId = ref('')
 
+// 核心新增：Ref绑定（文本框 + 两个隐藏文件框）
+const nodeContentInputRef = ref(null)
+const insertImgFileInput = ref(null)
+const uploadImgFileInput = ref(null)
+
 // 计算属性
 const filteredCategoryList = computed(() => {
   if (!selectedCategoryType.value) return []
@@ -408,7 +430,7 @@ const getNodeListByCategoryId = async (categoryId) => {
 }
 
 /**
- * 处理圆圈按钮点击 - 加nextTick保证DOM渲染完成再开弹窗
+ * 处理圆圈按钮点击
  */
 const handleCircleClick = async (item) => {
   if (item.type === "log") {
@@ -422,7 +444,7 @@ const handleCircleClick = async (item) => {
 }
 
 /**
- * 打开弹窗方法 - 统一加nextTick，避免DOM未渲染触发动画卡顿
+ * 打开弹窗方法
  */
 const openAddCategoryModal = async () => {
   showGrowthMainModal.value = false
@@ -452,7 +474,7 @@ const openDeleteNodeStep1Modal = async () => {
 }
 
 /**
- * 确认步骤 - 加nextTick保证弹窗切换流畅
+ * 确认步骤
  */
 const confirmCategoryType = async () => {
   if (!selectedCategoryType.value) return
@@ -490,10 +512,28 @@ const closeSelectTypeModal = () => {
   showSelectTypeModal.value = false
   selectedCategoryType.value = ''
 }
+// 原有关闭节点弹窗逻辑（无拦截，供确认后调用）
 const closeAddNodeModal = () => {
   showAddNodeModal.value = false
   nodeForm.value = { growthId: '', content: '', imgUrls: [] }
   selectedCategoryType.value = ''
+}
+// 核心新增：添加节点弹窗遮罩点击拦截逻辑
+const confirmCloseAddNodeModal = () => {
+  // 判断是否有已填数据（选了分类/输了内容/传了图片）
+  const hasData = nodeForm.value.growthId || 
+                  nodeForm.value.content.trim() || 
+                  nodeForm.value.imgUrls.length > 0
+  // 无数据：直接关闭
+  if (!hasData) {
+    closeAddNodeModal()
+    return
+  }
+  // 有数据：弹出警告确认，确认后才关闭
+  const isConfirm = confirm('⚠️ 警告：你已填写节点内容/上传图片，关闭后数据将全部丢失！\n是否确定关闭？')
+  if (isConfirm) {
+    closeAddNodeModal()
+  }
 }
 const closeDeleteCategoryModal = () => {
   showDeleteCategoryModal.value = false
@@ -518,7 +558,7 @@ const closeLogModal = () => {
 }
 
 /**
- * 图片上传通用方法
+ * 图片上传通用方法（返回图片URL）
  */
 const uploadImage = async (file) => {
   const validTypes = ['image/jpeg', 'image/png', 'image/gif']
@@ -540,6 +580,58 @@ const uploadImage = async (file) => {
   }
 }
 
+// ========== 核心新增：双图片按钮逻辑 ==========
+/**
+ * 触发图片嵌入的文件选择
+ */
+const triggerInsertImg = () => {
+  insertImgFileInput.value.click()
+}
+/**
+ * 触发图片上传的文件选择
+ */
+const triggerUploadImg = () => {
+  uploadImgFileInput.value.click()
+}
+/**
+ * 处理图片嵌入上传：插入[IMAGE:URL]到文字光标位置，不加入imgUrls
+ */
+const handleInsertImgUpload = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const imgUrl = await uploadImage(file)
+  if (!imgUrl) return
+
+  const input = nodeContentInputRef.value
+  if (!input) return
+  // 获取光标位置
+  const start = input.selectionStart
+  const end = input.selectionEnd
+  // 构造图片标记，换行分隔更美观
+  const imgTag = `\n[IMAGE:${imgUrl}]\n`
+  // 插入标记到光标位置
+  nodeForm.value.content = nodeForm.value.content.substring(0, start) + imgTag + nodeForm.value.content.substring(end)
+  // 重置光标到标记后，提升体验
+  nextTick(() => {
+    input.selectionStart = input.selectionEnd = start + imgTag.length
+  })
+  // 清空文件框，允许重复选择同一文件
+  e.target.value = ''
+}
+/**
+ * 处理图片上传：直接加入imgUrls（底部展示），和原有逻辑一致
+ */
+const handleUploadImgUpload = async (e) => {
+  const file = e.target.files[0]
+  if (!file) return
+  const imgUrl = await uploadImage(file)
+  if (imgUrl) {
+    nodeForm.value.imgUrls.push(imgUrl)
+  }
+  e.target.value = ''
+}
+// ==============================================
+
 /**
  * 龙岛日志 - 图片上传
  */
@@ -559,20 +651,11 @@ const handleImgError = (idx) => {
 }
 
 /**
- * 成长节点 - 图片上传
+ * 成长节点 - 图片相关（仅处理底部图片）
  */
-const handleNodeImageUpload = async (e) => {
-  const file = e.target.files[0]
-  if (!file) return
-  const imgUrl = await uploadImage(file)
-  if (imgUrl) {
-    nodeForm.value.imgUrls.push(imgUrl)
-  }
-  e.target.value = ''
-}
 const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 const handleNodeImgError = (idx) => {
-  alert(`第${idx+1}张图片无效，已自动移除`)
+  alert(`第${idx+1}张底部图片无效，已自动移除`)
   removeNodeImage(idx)
 }
 
@@ -603,7 +686,7 @@ const submitCategory = async () => {
 }
 
 /**
- * 提交成长节点
+ * 提交成长节点（无需修改：后端原样存储content和imgUrls即可）
  */
 const submitNode = async () => {
   const { growthId, content, imgUrls } = nodeForm.value
@@ -759,7 +842,7 @@ onMounted(() => {
   box-shadow: 0 10px 30px rgba(47, 84, 150, 0.1);
 }
 
-/* 圆圈按钮样式：轻量化过渡，只保留核心反馈 */
+/* 圆圈按钮样式 */
 .circle-item {
   width: 180px;
   height: 180px;
@@ -778,13 +861,13 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
-  transition: all 0.15s ease; /* 缩短过渡时长 */
+  transition: all 0.15s ease;
   border: 2px solid #2f5496;
   padding: 10px;
   box-sizing: border-box;
 }
 .circle-bg:hover {
-  transform: scale(1.03); /* 缩小缩放比例，减少渲染 */
+  transform: scale(1.03);
   box-shadow: 0 8px 20px rgba(47, 84, 150, 0.2);
   background-color: #f8fbff;
   border-color: #3a66b8;
@@ -807,7 +890,7 @@ onMounted(() => {
   color: #3a66b8;
 }
 
-/* 弹窗遮罩：极致轻量化 - 移除模糊、简化动画、时长0.1s */
+/* 弹窗遮罩 */
 .modal-mask {
   position: fixed;
   top: 0;
@@ -819,12 +902,11 @@ onMounted(() => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  /* 删掉backdrop-filter: blur，最耗性能的属性 */
-  animation: modalFadeIn 0.1s ease forwards; /* 超短时长长动画 */
+  animation: modalFadeIn 0.1s ease forwards;
   opacity: 0;
 }
 
-/* 弹窗容器：纯淡入动画，无位移/缩放，渲染开销最低 */
+/* 弹窗容器 */
 .modal-container {
   width: 500px;
   max-width: 90vw;
@@ -834,12 +916,11 @@ onMounted(() => {
   box-sizing: border-box;
   box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
   font-family: "Microsoft YaHei", "楷体", serif;
-  animation: modalFadeIn 0.12s ease forwards; /* 仅淡入，无其他变换 */
+  animation: modalFadeIn 0.12s ease forwards;
   opacity: 0;
   overflow: hidden;
 }
 
-/* 通用淡入动画：唯一动画，轻量化 */
 @keyframes modalFadeIn {
   from { opacity: 0; }
   to { opacity: 1; }
@@ -860,7 +941,7 @@ onMounted(() => {
   border-bottom-color: #ffcccc;
 }
 
-/* 表单项：简化所有过渡，只保留聚焦边框 */
+/* 表单项 */
 .modal-form-item {
   margin-bottom: 25px;
 }
@@ -879,7 +960,7 @@ onMounted(() => {
   font-size: 16px;
   outline: none;
   box-sizing: border-box;
-  transition: border-color 0.1s ease; /* 仅边框过渡，无其他 */
+  transition: border-color 0.1s ease;
   background-color: #fff;
 }
 .modal-select {
@@ -889,7 +970,6 @@ onMounted(() => {
   font-family: "Microsoft YaHei", "楷体", serif;
   resize: vertical;
 }
-/* 聚焦仅变边框色，删掉阴影/背景变化，减少渲染 */
 .modal-input:focus, .modal-select:focus, .modal-textarea:focus {
   border-color: #2f5496;
 }
@@ -908,7 +988,7 @@ onMounted(() => {
   margin-bottom: 0;
 }
 
-/* 图片预览：轻量化，无多余过渡 */
+/* 图片预览 */
 .upload-preview {
   margin-top: 10px;
   display: flex;
@@ -950,7 +1030,7 @@ onMounted(() => {
   background-color: #ff7875;
 }
 
-/* 按钮组：轻量化过渡，缩短时长，仅背景/阴影变化 */
+/* 按钮组 */
 .modal-btn-group {
   display: flex;
   justify-content: center;
@@ -991,12 +1071,10 @@ onMounted(() => {
 .growth-sub-btn.danger:hover, .modal-submit-btn.danger-btn:not(:disabled):hover {
   background-color: #ff7875;
 }
-/* 按压仅下移1px，无其他变换 */
 .growth-sub-btn:active, .modal-submit-btn:not(:disabled):active {
   transform: translateY(1px);
   box-shadow: none;
 }
-/* 禁用态直接去掉所有效果 */
 .growth-sub-btn:disabled, .modal-submit-btn:disabled {
   background-color: #b3d8ff;
   cursor: not-allowed;
@@ -1027,7 +1105,34 @@ onMounted(() => {
   transform: none;
 }
 
-/* 加载图标：保留基础旋转 */
+/* 核心新增：双图片按钮样式（适配原有风格） */
+.img-double-btn {
+  margin-top: 12px;
+}
+.img-btn {
+  padding: 8px 20px;
+  border: none;
+  border-radius: 6px;
+  font-size: 16px;
+  cursor: pointer;
+  transition: all 0.1s ease;
+  color: #fff;
+}
+.insert-btn {
+  background-color: #2f5496;
+}
+.upload-btn {
+  background-color: #00c0e2;
+}
+.img-btn:hover {
+  opacity: 0.9;
+  transform: translateY(-1px);
+}
+.img-btn:active {
+  transform: translateY(1px);
+}
+
+/* 加载图标 */
 .loading-icon {
   animation: rotate 1.5s linear infinite;
 }
@@ -1036,10 +1141,10 @@ onMounted(() => {
   to { transform: rotate(360deg); }
 }
 
-/* 响应式适配：同步轻量化 */
+/* 响应式适配 */
 @media (max-width: 768px) {
   .admin-title { font-size: 36px; }
-  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; box-shadow: 0 5px 15px rgba(47, 84, 150, 0.1); }
+  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; }
   .circle-item { width: 120px; height: 120px; }
   .circle-bg { width: 120px; height: 120px; }
   .circle-text { font-size: 18px; }
@@ -1048,6 +1153,6 @@ onMounted(() => {
   .modal-btn-group { gap: 15px; }
   .modal-submit-btn, .modal-close-btn { padding: 8px 20px; font-size: 16px; }
   .growth-sub-btn { font-size: 16px; }
-  .modal-select { padding: 10px 12px; font-size: 14px; }
+  .img-btn { padding: 6px 15px; font-size: 14px; }
 }
 </style>

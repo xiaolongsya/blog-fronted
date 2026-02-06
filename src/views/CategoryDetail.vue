@@ -24,27 +24,49 @@
           {{ formatTime(node.createTime) }}
         </div>
 
-        <!-- 文字内容 -->
-        <div class="node-content">
-          <div class="node-text">{{ node.content }}</div>
+        <!-- 核心修改：图文混排区域（解析content中的图片标记） -->
+        <div class="node-mix-content">
+          <div 
+            v-for="(item, idx) in node.mixContent" 
+            :key="idx"
+            :class="['mix-item', `mix-${item.type}`]"
+          >
+            <!-- 文字内容 -->
+            <p v-if="item.type === 'text'" class="mix-text">
+              {{ item.value }}
+            </p>
+            <!-- 嵌入的图片 -->
+            <div v-else-if="item.type === 'image'" class="mix-img-wrap">
+              <img 
+                :src="item.value" 
+                :alt="`嵌入图片${idx+1}`" 
+                class="node-image"
+                @error="handleImageError"
+                @click="showBigImage(item.value)"
+              >
+            </div>
+          </div>
         </div>
 
-        <!-- 图片区域 -->
-        <div class="node-images">
-          <img 
-            v-for="(imgUrl, index) in node.imgUrls" 
-            :key="index"
-            :src="imgUrl" 
-            :alt="`图片${index + 1}`" 
-            class="node-image"
-            @error="handleImageError"
-            @click="showBigImage(imgUrl)"
-          >
+        <!-- 保留：底部图片区域（imgUrls中的图片，和原有逻辑一致） -->
+        <div v-if="node.imgUrls.length > 0" class="node-bottom-images">
+          <div class="bottom-img-title">附件图片</div>
+          <div class="bottom-img-wrap">
+            <img 
+              v-for="(imgUrl, idx) in node.imgUrls" 
+              :key="idx"
+              :src="imgUrl" 
+              :alt="`底部图片${idx+1}`" 
+              class="node-image"
+              @error="handleImageError"
+              @click="showBigImage(imgUrl)"
+            >
+          </div>
         </div>
       </div>
     </div>
 
-    <!-- 图片放大弹窗（添加ref和触摸事件） -->
+    <!-- 图片放大弹窗（保留原有缩放拖拽功能） -->
     <div class="image-modal-mask" v-if="bigImageUrl" @click="closeBigImage">
       <img 
         ref="modalImageRef"
@@ -72,7 +94,7 @@ const category = ref(null)
 const nodes = ref([])
 const bigImageUrl = ref('') // 大图URL
 
-// 新增：图片缩放拖拽相关变量
+// 图片缩放拖拽相关变量
 const modalImageRef = ref(null) // 大图DOM引用
 const scale = ref(1) // 缩放比例
 const lastDistance = ref(0) // 上一次双指距离
@@ -86,24 +108,23 @@ onMounted(async () => {
   await loadNodes(categoryId)
 })
 
-// 加载分类信息（适配Result封装）
+// 加载分类信息
 const loadCategoryData = async (categoryId) => {
   try {
     const res = await fetch(`https://xiaolongya.cn/blog/growth/${categoryId}`)
     if (!res.ok) throw new Error('加载分类失败，HTTP状态码：' + res.status)
     
-    const result = await res.json() // 先获取完整的Result对象
-    // 1. 验证接口响应是否成功（默认code=200为成功，可根据后端调整）
+    const result = await res.json()
     if (result.code !== 200) {
       throw new Error('加载分类失败：' + (result.msg || '未知错误'))
     }
-    // 2. 提取Result中的核心数据data，赋值给category
     category.value = result.data || null
   } catch (error) {
     console.error('加载分类信息失败:', error)
   }
 }
 
+// 加载节点 + 核心解析：图文混排数据
 const loadNodes = async (categoryId) => {
   try {
     const res = await fetch(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`);
@@ -115,23 +136,48 @@ const loadNodes = async (categoryId) => {
     }
     let originalNodes = result.data || [];
     
-    // 修复：兼容字符串时间的倒序排序
+    // 修复排序bug：倒序（新时间在前，符合成长历程逻辑）
     originalNodes = originalNodes.sort((a, b) => {
       if (!a.createTime) return 1;
       if (!b.createTime) return -1;
       const timeA = new Date(a.createTime).getTime();
       const timeB = new Date(b.createTime).getTime();
-      return timeA - timeB; // 倒序（新时间在前）
+      return timeB - timeA;
     });
     
+    // 解析每个节点的图文混排数据
     nodes.value = originalNodes.map(item => ({
       ...item,
-      imgUrls: item.imgUrls || []
+      mixContent: parseMixContent(item.content || ''), // 解析嵌入的图片
+      imgUrls: item.imgUrls || [] // 保留底部图片
     }));
   } catch (error) {
     console.error('加载节点失败:', error);
   }
 };
+
+// 核心方法：解析content中的[IMAGE:URL]标记，生成图文混排数组
+const parseMixContent = (content) => {
+  const mixList = [];
+  if (!content.trim()) return mixList;
+  // 按特殊标记分割，奇数项为文字，偶数项为图片URL
+  const splitItems = content.split(/\[IMAGE:([^\]]+)\]/);
+  splitItems.forEach(item => {
+    if (!item.trim()) return;
+    // 判断是否为图片URL
+    if (splitItems.indexOf(item) % 2 === 1) {
+      mixList.push({ type: 'image', value: item.trim() });
+    } else {
+      // 文字按换行分割，保留排版
+      const textParas = item.split('\n');
+      textParas.forEach(para => {
+        if (para.trim()) mixList.push({ type: 'text', value: para });
+      });
+    }
+  });
+  return mixList;
+};
+
 // 格式化时间
 const formatTime = (timestamp) => {
   if (!timestamp) return ''
@@ -144,74 +190,57 @@ const handleImageError = (event) => {
   event.target.style.display = 'none'
 }
 
-// 新增：触摸开始（双指初始距离/单指起始位置）
+// 图片缩放拖拽事件（保留原有功能）
 const handleTouchStart = (e) => {
   if (e.touches.length === 2) {
-    // 双指：计算初始距离
     const x1 = e.touches[0].clientX
     const y1 = e.touches[0].clientY
     const x2 = e.touches[1].clientX
     const y2 = e.touches[1].clientY
     lastDistance.value = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
   } else if (e.touches.length === 1) {
-    // 单指：记录拖拽起始位置
     startPos.value = {
       x: e.touches[0].clientX - translatePos.value.x,
       y: e.touches[0].clientY - translatePos.value.y
     }
   }
 }
-
-// 新增：触摸移动（双指缩放/单指拖拽）
 const handleTouchMove = (e) => {
-  e.preventDefault() // 阻止页面滚动穿透
+  e.preventDefault()
   const imageDom = modalImageRef.value
   if (!imageDom) return
 
   if (e.touches.length === 2) {
-    // 双指缩放
     const x1 = e.touches[0].clientX
     const y1 = e.touches[0].clientY
     const x2 = e.touches[1].clientX
     const y2 = e.touches[1].clientY
     const currentDistance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
-
-    // 计算缩放增量，限制1~5倍缩放
     const scaleDelta = currentDistance / lastDistance.value
     scale.value = Math.max(1, Math.min(5, scale.value * scaleDelta))
     lastDistance.value = currentDistance
-
-    // 应用缩放+拖拽样式
     imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
   } else if (e.touches.length === 1 && scale.value > 1) {
-    // 单指拖拽（仅缩放后可用）
     translatePos.value = {
       x: e.touches[0].clientX - startPos.value.x,
       y: e.touches[0].clientY - startPos.value.y
     }
-
-    // 应用缩放+拖拽样式
     imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
   }
 }
-
-// 新增：触摸结束（重置临时变量）
 const handleTouchEnd = () => {
   lastDistance.value = 0
 }
 
-// 图片点击放大（重置缩放和拖拽状态）
+// 图片放大/关闭
 const showBigImage = (url) => {
   bigImageUrl.value = url
-  // 重置缩放和拖拽
   scale.value = 1
   translatePos.value = { x: 0, y: 0 }
   if (modalImageRef.value) {
     modalImageRef.value.style.transform = 'scale(1) translate(0, 0)'
   }
 }
-
-// 关闭大图弹窗
 const closeBigImage = () => {
   bigImageUrl.value = ''
 }
@@ -223,8 +252,7 @@ const closeBigImage = () => {
   max-width: 800px;
   margin: 0 auto;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
-  font-size: 20px; /* 全局字体加大 */
-  /* 已删除浅蓝色背景属性，页面恢复默认背景（通常为白色） */
+  font-size: 20px;
 }
 
 .back-button-section {
@@ -238,7 +266,7 @@ const closeBigImage = () => {
   padding: 8px 16px;
   border-radius: 4px;
   cursor: pointer;
-  font-size: 1.4rem; /* 按钮文字加大 */
+  font-size: 1.4rem;
 }
 
 .back-btn:hover {
@@ -251,7 +279,7 @@ const closeBigImage = () => {
 }
 
 .category-title {
-  font-size: 4rem; /* 标题字体加大 */
+  font-size: 4rem;
   color: #00c0e2;
   margin: 0;
   font-weight: bold;
@@ -263,7 +291,6 @@ const closeBigImage = () => {
   gap: 20px;
 }
 
-/* 核心修改：节点卡片统一长方形 */
 .node-card {
   background: rgb(102, 139, 197);
   border-radius: 8px;
@@ -271,64 +298,75 @@ const closeBigImage = () => {
   box-shadow: 0 2px 8px rgba(0,0,0,0.06);
   border: 1px solid #033ab1;
   width: 100%;
-  /* 固定卡片高度，保证所有节点大小一致 */
-  height: 360px; /* 卡片高度加大 */
   box-sizing: border-box;
   display: flex;
   flex-direction: column;
+  min-height: 100px;
 }
 
 .node-time-label {
-  font-size: 1.2rem; /* 时间标签字体加大 */
+  font-size: 1.2rem;
   color: #2f5496;
-  background: transparent;
   padding: 0 0 10px 0;
-  border-radius: 0;
-  display: inline-block;
-  margin-bottom: 10px;
-  font-weight: bold;
-  border-bottom: 0;
-}
-
-.node-content {
-  flex: 1;
   margin-bottom: 15px;
-  line-height: 1.8; /* 行高加大 */
-  overflow: hidden;
+  font-weight: bold;
+  border-bottom: 1px solid #2f549633;
 }
 
-.node-text {
-  font-size: 1.2rem; /* 内容文字加大 */
+/* 图文混排区域样式 */
+.node-mix-content {
+  line-height: 1.8;
+  width: 100%;
+  margin-bottom: 20px;
+}
+.mix-item {
+  margin-bottom: 12px;
+}
+.mix-text {
+  margin: 0;
+  font-size: 1.2rem;
   color: #333;
   white-space: pre-wrap;
-  max-width: 100%;
   word-break: break-word;
 }
+.mix-img-wrap {
+  display: inline-block;
+  margin: 8px 0;
+}
 
-.node-images {
+/* 底部图片区域样式 */
+.node-bottom-images {
+  margin-top: 20px;
+  padding-top: 20px;
+  border-top: 1px dashed #2f549666;
+}
+.bottom-img-title {
+  font-size: 1.1rem;
+  color: #2f5496;
+  margin-bottom: 10px;
+  font-weight: 500;
+}
+.bottom-img-wrap {
   display: flex;
   gap: 10px;
   flex-wrap: wrap;
-  margin-top: 10px;
-  align-self: flex-start;
 }
 
-/* 小图完整显示 */
+/* 图片通用样式 */
 .node-image {
-  width: 140px; /* 图片宽度加大 */
-  height: 105px; /* 图片高度加大 */
+  width: 140px;
+  height: 105px;
   object-fit: contain;
   background: #f5f5f5;
   border-radius: 4px;
   cursor: pointer;
   transition: transform 0.2s ease;
 }
-
 .node-image:hover {
   transform: scale(1.05);
 }
 
-/* 图片放大弹窗（优化样式适配缩放拖拽） */
+/* 图片放大弹窗 */
 .image-modal-mask {
   position: fixed;
   top: 0;
@@ -340,8 +378,8 @@ const closeBigImage = () => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  overflow: hidden; /* 隐藏超出遮罩的图片部分 */
-  touch-action: none; /* 禁用默认触摸行为 */
+  overflow: hidden;
+  touch-action: none;
 }
 
 .image-modal-img {
@@ -349,9 +387,9 @@ const closeBigImage = () => {
   max-height: 90%;
   object-fit: contain;
   border-radius: 8px;
-  touch-action: none; /* 禁用浏览器默认触摸行为 */
-  transform-origin: center center; /* 以图片中心缩放，更符合直觉 */
-  transition: transform 0.1s ease; /* 缩放/拖拽过渡，更顺滑 */
+  touch-action: none;
+  transform-origin: center center;
+  transition: transform 0.1s ease;
 }
 
 /* 响应式适配 */
@@ -361,25 +399,25 @@ const closeBigImage = () => {
   }
 
   .category-title {
-    font-size: 2.2rem; /* 移动端标题加大 */
+    font-size: 2.2rem;
   }
 
   .node-card {
     padding: 15px;
-    height: 320px; /* 移动端卡片高度加大 */
+    min-height: 100px;
   }
 
   .node-time-label {
-    font-size: 1.1rem; /* 移动端时间标签加大 */
+    font-size: 1.1rem;
   }
 
-  .node-text {
-    font-size: 1.1rem; /* 移动端内容文字加大 */
+  .mix-text {
+    font-size: 1.1rem;
   }
 
   .node-image {
-    width: 120px; /* 移动端图片宽度加大 */
-    height: 90px; /* 移动端图片高度加大 */
+    width: 120px;
+    height: 90px;
   }
 }
 </style>
