@@ -114,7 +114,8 @@ const fetchCategories = async () => {
       createTime: category.createTime || '',
       type: category.type || ''
     }))
-    categories.value.sort((a, b) => new Date(a.createTime) - new Date(b.createTime))
+    // 核心修改：将升序改为降序，最新添加的分类排在前面
+    categories.value.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
   } catch (err) {
     console.error('加载分类失败：', err)
     alert('加载分类失败，请检查网络连接或联系管理员')

@@ -123,12 +123,20 @@ const btnWidth = ref(40) // 滑块按钮宽度
 const isSubmitting = ref(false) // 防止重复提交
 
 /**
- * 时间格式化工具（对应数据库的create_time字段）
+ * 时间格式化工具（兼容yyyy-MM-dd HH:mm:ss格式）
  */
 const formatTime = (timeStr) => {
   if (!timeStr) return '未知时间'
   try {
-    const date = new Date(timeStr)
+    // 兼容后端返回的 "yyyy-MM-dd HH:mm:ss" 格式
+    const formattedTime = timeStr.replace(/ /g, 'T') + '+08:00'
+    const date = new Date(formattedTime)
+    
+    // 检查日期是否有效
+    if (isNaN(date.getTime())) {
+      return '未知时间'
+    }
+    
     return date.toLocaleString('zh-CN', {
       year: 'numeric',
       month: '2-digit',
@@ -138,6 +146,7 @@ const formatTime = (timeStr) => {
       second: '2-digit'
     })
   } catch (e) {
+    console.error('时间格式化失败：', e)
     return timeStr
   }
 }
@@ -158,17 +167,18 @@ onMounted(async () => {
   }
 
   try {
-    // 获取评论列表（和数据库字段对应：name/content/create_time/reply）
+    // 获取评论列表
     const res = await axios.get('/comment/list', {
       params: { articleId: 1 }
     })
     if (res.data.code === 200) {
+      // 修复：将后端的createTime映射为前端的create_time
       commentList.value = res.data.data.map(item => ({
         id: item.id,
-        name: item.name, // 对应数据库的name字段
-        content: item.content, // 对应数据库的content字段
-        create_time: item.create_time, // 对应数据库的create_time字段
-        reply: item.reply ?? '' // 对应数据库的reply字段（兼容null）
+        name: item.name,
+        content: item.content,
+        create_time: item.createTime, // 关键修复：item.createTime 而非 item.create_time
+        reply: item.reply ?? ''
       }))
     } else {
       alert('获取评论失败：' + res.data.msg)
@@ -330,11 +340,12 @@ const submitComment = async () => {
       // 重新获取评论列表，更新页面
       const listRes = await axios.get('/comment/list', { params: { articleId: 1 } })
       if (listRes.data.code === 200) {
+        // 修复：重新获取列表时也映射正确的createTime字段
         commentList.value = listRes.data.data.map(item => ({
           id: item.id,
           name: item.name,
           content: item.content,
-          create_time: item.create_time,
+          create_time: item.createTime, // 关键修复
           reply: item.reply ?? ''
         }))
       }
