@@ -1,9 +1,7 @@
 <template>
   <div class="development-page">
-    <!-- 页面顶部标题 -->
     <h1 class="page-title">龙岛的发展</h1>
     
-    <!-- 新增仓库链接区域 -->
     <div class="repo-links">
       <a 
         href="https://github.com/xiaolongsya/blog-fronted" 
@@ -25,13 +23,9 @@
       </a>
     </div>
 
-    <!-- 多个更新节点 -->
     <div class="update-item" v-for="(item, idx) in updateList" :key="idx">
-      <!-- 节点左上角的时间（放大加粗） -->
       <div class="item-time">{{ item.time }}</div>
-      <!-- 文字内容：v-html绑定格式化后的内容，处理回车键换行 -->
       <div class="item-content" v-html="formatContent(item.content)"></div>
-      <!-- 可选图片（缩小排列，点击放大） -->
       <div class="item-image-wrap" v-if="item.images.length">
         <img 
           v-for="(img, imgIdx) in item.images" 
@@ -43,7 +37,18 @@
       </div>
     </div>
 
-    <!-- 图片放大弹窗（添加ref和触摸事件） -->
+    <div class="load-more-wrap">
+      <button 
+        v-if="hasMore" 
+        class="load-more-btn" 
+        @click="loadMore" 
+        :disabled="isLoading"
+      >
+        {{ isLoading ? '加载中...' : '查看更多' }}
+      </button>
+      <p v-else class="no-more-text">—— 到底啦，没有更多记录了 ——</p>
+    </div>
+
     <div class="image-modal-mask" v-if="bigImageUrl" @click="closeBigImage">
       <img 
         ref="modalImageRef"
@@ -64,17 +69,22 @@ import { ref, onMounted } from 'vue'
 const updateList = ref([])
 const bigImageUrl = ref('')
 
-// 新增：图片缩放拖拽相关变量
-const modalImageRef = ref(null) // 大图DOM引用
-const scale = ref(1) // 缩放比例
-const lastDistance = ref(0) // 上一次双指距离
-const startPos = ref({ x: 0, y: 0 }) // 拖拽起始位置
-const translatePos = ref({ x: 0, y: 0 }) // 图片偏移位置
+// 分页相关变量
+const pageNum = ref(1)
+const pageSize = 5
+const hasMore = ref(true)   // 是否还有更多数据
+const isLoading = ref(false) // 是否正在请求中
 
-// 核心新增：处理content换行，同时做XSS防护（转义特殊字符）
+// 图片缩放拖拽相关变量 (保持不变)
+const modalImageRef = ref(null)
+const scale = ref(1)
+const lastDistance = ref(0)
+const startPos = ref({ x: 0, y: 0 })
+const translatePos = ref({ x: 0, y: 0 })
+
+// 格式化内容 (保持不变)
 const formatContent = (content) => {
   if (!content) return ''
-  // 第一步：转义HTML特殊字符，防止恶意标签注入（生产环境必做）
   const escapeHtml = (str) => {
     return str
       .replace(/&/g, '&amp;')
@@ -83,64 +93,75 @@ const formatContent = (content) => {
       .replace(/"/g, '&quot;')
       .replace(/'/g, '&#039;')
   }
-  // 第二步：先转义再替换换行符\n为<br>，保证浏览器识别换行
   return escapeHtml(content).replace(/\n/g, '<br>')
 }
 
+// 核心修改：获取数据方法（支持分页）
 const fetchUpdateList = async () => {
+  // 如果正在加载或没有更多数据，则中断
+  if (isLoading.value) return 
+  
+  isLoading.value = true
   try {
-    const res = await fetch('https://xiaolongya.cn/blog/development/list')
-    // 1. 强化HTTP网络错误判断，携带状态码
+    // 拼接分页参数
+    const url = `https://xiaolongya.cn/blog/development/listPage?pageNum=${pageNum.value}&pageSize=${pageSize}`
+    const res = await fetch(url)
+    
     if (!res.ok) throw new Error(`网络请求失败，HTTP状态码：${res.status}`)
     
-    const result = await res.json() // 重命名为result，更清晰表示是封装对象
-    // 2. 严谨判断Result响应成功（优先判断code=200，兼容未封装的旧数据）
+    const result = await res.json()
+
     if (result.code === 200) {
-      // 3. 提取核心数据，添加容错默认值（避免data为null）
-      const originalList = result.data || []
-      updateList.value = originalList.map(item => ({
+      const newData = result.data || []
+      
+      // 处理单页数据格式
+      const processedData = newData.map(item => ({
         time: item.createTime ? item.createTime.split(' ')[0] : '',
         content: item.content || '',
+        // 兼容处理：新接口返回的是数组，但也保留对字符串分割的兼容
         images: Array.isArray(item.imgUrls) 
           ? item.imgUrls 
           : (item.imgUrls ? item.imgUrls.split(',') : [])
       }))
-    } else if (!result.code) {
-      // 兼容后端未做Result封装的旧数据（直接使用返回结果）
-      const originalList = result || []
-      updateList.value = originalList.map(item => ({
-        time: item.createTime ? item.createTime.split(' ')[0] : '',
-        content: item.content || '',
-        images: Array.isArray(item.imgUrls) 
-          ? item.imgUrls 
-          : (item.imgUrls ? item.imgUrls.split(',') : [])
-      }))
+
+      // 将新数据追加到列表末尾
+      updateList.value = [...updateList.value, ...processedData]
+
+      // 判断是否还有更多数据
+      if (newData.length < pageSize) {
+        hasMore.value = false // 返回不足5条，说明到头了
+      } else {
+        pageNum.value++ // 准备下一次加载下一页
+      }
     } else {
-      // 4. 捕获后端返回的业务错误，打印并提示
       throw new Error(`获取更新记录失败：${result.msg || '未知业务错误'}`)
     }
   } catch (err) {
     console.error('获取更新记录失败：', err)
-    // 可选：添加前端页面提示，让用户感知错误
-    // alert(err.message)
+    // alert(err.message) // 可选报错提示
+  } finally {
+    isLoading.value = false
   }
 }
 
-onMounted(() => {
+// 点击加载更多
+const loadMore = () => {
   fetchUpdateList()
+}
+
+onMounted(() => {
+  fetchUpdateList() // 初始加载第一页
 })
 
-// 新增：触摸开始（双指初始距离/单指起始位置）
+// 触摸事件处理函数 (保持不变)
 const handleTouchStart = (e) => {
   if (e.touches.length === 2) {
-    // 双指：计算初始距离
     const x1 = e.touches[0].clientX
     const y1 = e.touches[0].clientY
     const x2 = e.touches[1].clientX
     const y2 = e.touches[1].clientY
     lastDistance.value = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
   } else if (e.touches.length === 1) {
-    // 单指：记录拖拽起始位置
     startPos.value = {
       x: e.touches[0].clientX - translatePos.value.x,
       y: e.touches[0].clientY - translatePos.value.y
@@ -148,48 +169,36 @@ const handleTouchStart = (e) => {
   }
 }
 
-// 新增：触摸移动（双指缩放/单指拖拽）
 const handleTouchMove = (e) => {
-  e.preventDefault() // 阻止页面滚动穿透
+  e.preventDefault()
   const imageDom = modalImageRef.value
   if (!imageDom) return
 
   if (e.touches.length === 2) {
-    // 双指缩放
     const x1 = e.touches[0].clientX
     const y1 = e.touches[0].clientY
     const x2 = e.touches[1].clientX
     const y2 = e.touches[1].clientY
     const currentDistance = Math.sqrt(Math.pow(x2 - x1, 2) + Math.pow(y2 - y1, 2))
-
-    // 计算缩放增量，限制1~5倍缩放
     const scaleDelta = currentDistance / lastDistance.value
     scale.value = Math.max(1, Math.min(5, scale.value * scaleDelta))
     lastDistance.value = currentDistance
-
-    // 应用缩放+拖拽样式
     imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
   } else if (e.touches.length === 1 && scale.value > 1) {
-    // 单指拖拽（仅缩放后可用）
     translatePos.value = {
       x: e.touches[0].clientX - startPos.value.x,
       y: e.touches[0].clientY - startPos.value.y
     }
-
-    // 应用缩放+拖拽样式
     imageDom.style.transform = `scale(${scale.value}) translate(${translatePos.value.x}px, ${translatePos.value.y}px)`
   }
 }
 
-// 新增：触摸结束（重置临时变量）
 const handleTouchEnd = () => {
   lastDistance.value = 0
 }
 
-// 图片点击放大（重置缩放和拖拽状态）
 const showBigImage = (url) => {
   bigImageUrl.value = url
-  // 重置缩放和拖拽
   scale.value = 1
   translatePos.value = { x: 0, y: 0 }
   if (modalImageRef.value) {
@@ -203,21 +212,22 @@ const closeBigImage = () => {
 </script>
 
 <style scoped>
+/* 原有样式保持不变 */
 .development-page {
   width: 90%;
   max-width: 800px;
   margin: 40px auto;
   padding: 0 20px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
-  font-size: 20px; /* 全局字体加大 */
+  font-size: 20px;
 }
 
 .page-title {
-  font-size: 64px; /* 标题字体加大 */
+  font-size: 64px;
   color: #00c0e2;
   text-align: center;
   margin-bottom: 20px;
-  letter-spacing: 10px; /* 字间距加大 */
+  letter-spacing: 10px;
 }
 
 .repo-links {
@@ -237,7 +247,7 @@ const closeBigImage = () => {
   color: rgb(220, 132, 132) !important;
   text-decoration: none;
   border-radius: 8px;
-  font-size: 18px; /* 链接字体加大 */
+  font-size: 18px;
   transition: all 0.3s ease;
   max-width: 90%;
   word-break: break-all;
@@ -272,17 +282,17 @@ const closeBigImage = () => {
   position: absolute;
   top: 15px;
   left: 20px;
-  font-size: 28px; /* 时间字体加大 */
+  font-size: 28px;
   font-weight: 900;
   color: #2f5496;
 }
 
 .item-content {
   margin-top: 40px;
-  font-size: 22px; /* 内容字体加大 */
+  font-size: 22px;
   color: #333;
-  line-height: 1.8; /* 行高增加以提升可读性 */
-  white-space: pre-line; /* 兜底：兼容意外的换行处理，保留空白行 */
+  line-height: 1.8;
+  white-space: pre-line;
 }
 
 .item-image-wrap {
@@ -303,7 +313,6 @@ const closeBigImage = () => {
   transform: scale(1.05);
 }
 
-/* 图片放大弹窗（优化样式适配缩放拖拽） */
 .image-modal-mask {
   position: fixed;
   top: 0;
@@ -315,40 +324,84 @@ const closeBigImage = () => {
   justify-content: center;
   align-items: center;
   z-index: 9999;
-  overflow: hidden; /* 隐藏超出遮罩层的图片部分 */
-  touch-action: none; /* 禁用默认触摸行为 */
+  overflow: hidden;
+  touch-action: none;
 }
 .image-modal-img {
   max-width: 90%;
   max-height: 90%;
   object-fit: contain;
   border-radius: 8px;
-  touch-action: none; /* 禁用浏览器默认触摸行为 */
-  transform-origin: center center; /* 以图片中心缩放，更符合直觉 */
-  transition: transform 0.1s ease; /* 缩放/拖拽过渡，更顺滑 */
+  touch-action: none;
+  transform-origin: center center;
+  transition: transform 0.1s ease;
 }
 
-/* 响应式适配 */
+/* --- 新增样式：加载更多按钮 --- */
+.load-more-wrap {
+  text-align: center;
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
+
+.load-more-btn {
+  background-color: #00c0e2;
+  color: #fff;
+  border: none;
+  padding: 12px 40px;
+  font-size: 20px;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-weight: bold;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background-color: #00a0be;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+}
+
+.load-more-btn:disabled {
+  background-color: #9cddec;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.no-more-text {
+  color: #999;
+  font-size: 18px;
+  margin-top: 20px;
+}
+
 @media (max-width: 768px) {
   .page-title {
-    font-size: 40px; /* 移动端标题字体加大 */
+    font-size: 40px;
     letter-spacing: 6px;
   }
   .repo-link {
-    font-size: 16px; /* 移动端链接字体加大 */
+    font-size: 16px;
     padding: 8px 15px;
     margin: 6px 0;
     display: block;
   }
   .item-time {
-    font-size: 24px; /* 移动端时间字体加大 */
+    font-size: 24px;
   }
   .item-content {
-    font-size: 20px; /* 移动端内容字体加大 */
+    font-size: 20px;
   }
   .item-image {
     width: 100px;
     height: 100px;
+  }
+  
+  /* 移动端加载按钮适配 */
+  .load-more-btn {
+    width: 80%;
+    padding: 12px 0;
   }
 }
 </style>

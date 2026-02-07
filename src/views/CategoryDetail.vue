@@ -64,6 +64,19 @@
       </div>
     </div>
 
+    <div class="load-more-wrap">
+      <button 
+        v-if="hasMore" 
+        class="load-more-btn" 
+        @click="loadMore" 
+        :disabled="isLoading"
+      >
+        {{ isLoading ? '加载中...' : '查看更多' }}
+      </button>
+      <p v-else-if="nodeList.length > 0" class="no-more-text">—— 到底啦，没有更多记录了 ——</p>
+      <p v-else class="no-more-text">暂无数据</p>
+    </div>
+
     <div v-if="showImageModal" class="image-modal-mask" @click="closeImageModal">
       <img 
         ref="imageRef"
@@ -94,37 +107,37 @@ const route = useRoute()
 const categoryName = ref('分类详情')
 const nodeList = ref([])
 
-// ================= 图片查看器状态 =================
+// ================= 分页与筛选相关变量 =================
+const pageNum = ref(1)
+const pageSize = 5
+const hasMore = ref(true)
+const isLoading = ref(false)
+// 新增：用于存储当前分类的ID，对应接口的 growthId
+const currentGrowthId = ref(0) 
+
+// ================= 图片查看器状态 (保持不变) =================
 const showImageModal = ref(false)
 const currentImageUrl = ref('')
 const imageRef = ref(null)
-
-// 视图变换状态 (非响应式变量，提升性能)
-let state = {
-  scale: 1,      // 当前缩放比例
-  x: 0,          // 当前X轴偏移
-  y: 0,          // 当前Y轴偏移
-  isDragging: false,
-  startX: 0,     // 拖拽起始鼠标X
-  startY: 0,     // 拖拽起始鼠标Y
-  lastX: 0,      // 拖拽起始时的图片X偏移
-  lastY: 0       // 拖拽起始时的图片Y偏移
-}
-
-// 缓存尺寸信息，避免重复读取DOM
-let dims = {
-  imgW: 0,       // 图片原始渲染宽度
-  imgH: 0,       // 图片原始渲染高度
-  winW: 0,       // 窗口宽度
-  winH: 0        // 窗口高度
-}
+let state = { scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 }
+let dims = { imgW: 0, imgH: 0, winW: 0, winH: 0 }
 
 // ================= 生命周期与数据加载 =================
 onMounted(async () => {
   try {
+    // 1. 从路由参数获取 ID (例如 /growth/12 -> id=12)
     const categoryId = Number(route.params.id) || 0
-    if (categoryId) await Promise.all([loadCategory(categoryId), loadNodes(categoryId)])
-    // 监听窗口大小变化
+    
+    if (categoryId) {
+      // 2. 存入 currentGrowthId，后续请求都要用它
+      currentGrowthId.value = categoryId
+      
+      // 并行加载：分类详情信息 + 该分类下的节点列表
+      await Promise.all([loadCategory(categoryId), loadNodes()])
+    } else {
+      console.error("未获取到有效的分类ID")
+    }
+    
     window.addEventListener('resize', updateDims)
   } catch (err) {
     console.log('页面加载失败:', err)
@@ -146,37 +159,86 @@ const goBack = () => {
   try { router.back() } catch (err) { router.push('/growth') }
 }
 
+// 加载分类的基本信息（标题等）
 const loadCategory = async (id) => {
   try {
     const res = await fetch(`https://xiaolongya.cn/blog/growth/${id}`)
     const data = await res.json()
-    if (data.code === 200 && data.data?.name) categoryName.value = data.data.name
+    if (data.code === 200 && data.data?.name) {
+      categoryName.value = data.data.name
+    }
   } catch (err) {
     console.log('加载分类失败:', err)
   }
 }
 
-const loadNodes = async (id) => {
+// 核心修复：加载节点列表（带上 growthId）
+const loadNodes = async () => {
+  // 防止重复请求
+  if (isLoading.value) return
+  isLoading.value = true
+
   try {
-    const res = await fetch(`https://xiaolongya.cn/blog/node/list?growthId=${id}`)
-    const data = await res.json()
-    if (data.code === 200 && Array.isArray(data.data)) {
-      const sortedNodes = data.data.sort((a, b) => {
+    // 构造URL：拼接 growthId, pageNum, pageSize
+    // 注意：这里使用了 currentGrowthId.value
+    const url = `https://xiaolongya.cn/blog/node/listPage?growthId=${currentGrowthId.value}&pageNum=${pageNum.value}&pageSize=${pageSize}`
+    
+    const res = await fetch(url)
+    
+    if (!res.ok) throw new Error(`网络请求失败: ${res.status}`)
+    
+    const result = await res.json()
+
+    if (result.code === 200) {
+      // 兼容后端可能直接返回数组，或返回分页对象(data.records)的情况
+      // 根据你的截图，如果使用了分页插件，数据通常在 result.data.records 或 result.data 中
+      // 这里做个兼容判断：
+      let listData = []
+      if (Array.isArray(result.data)) {
+        listData = result.data
+      } else if (result.data && Array.isArray(result.data.records)) {
+        listData = result.data.records
+      }
+
+      // 按时间正序排序 (旧 -> 新)
+      const sortedChunk = listData.sort((a, b) => {
         const tA = a.createTime ? new Date(a.createTime).getTime() : 0
         const tB = b.createTime ? new Date(b.createTime).getTime() : 0
         return tA - tB
       })
-      nodeList.value = sortedNodes.map(item => ({
+
+      // 解析内容（处理 [IMAGE:...] 标签）
+      const processedNodes = sortedChunk.map(item => ({
         ...item,
         mixContent: parseContent(item.content || ''),
         imgUrls: Array.isArray(item.imgUrls) ? item.imgUrls : []
       }))
+
+      // 追加数据（而不是覆盖）
+      nodeList.value = [...nodeList.value, ...processedNodes]
+
+      // 判断是否还有更多数据
+      if (listData.length < pageSize) {
+        hasMore.value = false
+      } else {
+        pageNum.value++
+      }
+    } else {
+       console.error(`获取节点失败: ${result.msg}`)
     }
   } catch (err) {
-    console.log('加载节点失败:', err)
+    console.error('加载节点出错:', err)
+  } finally {
+    isLoading.value = false
   }
 }
 
+// 点击加载更多
+const loadMore = () => {
+  loadNodes()
+}
+
+// ... (parseContent, getContentGroups, formatTime 等辅助函数保持不变) ...
 const parseContent = (content) => {
   if (!content) return []
   const result = []
@@ -211,28 +273,18 @@ const formatTime = (time) => {
 
 const handleImageError = (e) => { e.target.style.display = 'none' }
 
-// ================= 核心：图片查看器交互逻辑 =================
-
-/**
- * 打开弹窗：初始化所有状态
- */
+// ================= 图片查看器交互逻辑 (保持不变) =================
 const openImage = (url) => {
   if (!url) return
   currentImageUrl.value = url
   showImageModal.value = true
-  
-  // 重置变换状态
   state = { scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 }
-  
   nextTick(() => {
     if (!imageRef.value) return
-    // 初始化尺寸缓存
     dims.winW = window.innerWidth
     dims.winH = window.innerHeight
     dims.imgW = imageRef.value.offsetWidth
     dims.imgH = imageRef.value.offsetHeight
-    
-    // 应用初始样式 (无动画)
     updateTransform(false)
   })
 }
@@ -242,129 +294,64 @@ const closeImageModal = () => {
   currentImageUrl.value = ''
 }
 
-/**
- * 统一应用样式变换
- * @param {boolean} animation 是否启用过渡动画（拖拽时禁用以保证跟手）
- */
 const updateTransform = (animation = true) => {
   if (!imageRef.value) return
-  
-  // 拖拽时关闭动画，松手或缩放时开启动画
   imageRef.value.style.transition = animation ? 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)' : 'none'
-  
-  // 使用 translate3d 开启硬件加速
-  // 核心：Translate 是基于屏幕坐标的，Scale 是基于中心点的
   imageRef.value.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`
 }
 
-/**
- * 计算边界限制（Clamp）
- * 规则：
- * 1. 图片比视窗小 -> 强制居中 (x=0, y=0)
- * 2. 图片比视窗大 -> 允许移动，但边缘不能露出视窗背景
- */
-const clampPosition = () => {
-  // 当前缩放后的实际尺寸
-  const curW = dims.imgW * state.scale
-  const curH = dims.imgH * state.scale
-  
-  // 计算X轴允许的最大偏移量
-  // 偏移量 0 代表中心。最大正负偏移 = (图片宽 - 视窗宽) / 2
-  if (curW <= dims.winW) {
-    state.x = 0 // 居中
-  } else {
-    const maxX = (curW - dims.winW) / 2
-    state.x = Math.max(-maxX, Math.min(maxX, state.x))
-  }
-
-  // 计算Y轴
-  if (curH <= dims.winH) {
-    state.y = 0
-  } else {
-    const maxY = (curH - dims.winH) / 2
-    state.y = Math.max(-maxY, Math.min(maxY, state.y))
-  }
-}
-
-/**
- * 滚轮缩放：以屏幕中心为锚点
- */
 const handleWheel = (e) => {
   if (!imageRef.value) return
-  
-  // 计算缩放增量
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   let newScale = state.scale + delta
-  
-  // 限制缩放范围 (0.5倍 - 5倍)
   newScale = Math.max(0.5, Math.min(5, newScale))
-  
-  // 如果缩放比例没变，直接返回
   if (Math.abs(newScale - state.scale) < 0.01) return
-
-  // 【核心算法】：保持中心点不变
-  // 当图片放大 N 倍时，原有的偏移量也必须放大 N 倍，才能保持视野中心的内容不变
   const ratio = newScale / state.scale
   state.scale = newScale
   state.x *= ratio
   state.y *= ratio
-  
-  // 缩放结束后，进行边界修正（防止缩小后出现黑边）
-  clampPosition()
-  
+  // clampPosition逻辑省略，保持原有即可
+  const curW = dims.imgW * state.scale
+  const curH = dims.imgH * state.scale
+  if (curW <= dims.winW) state.x = 0
+  else { const maxX = (curW - dims.winW) / 2; state.x = Math.max(-maxX, Math.min(maxX, state.x)) }
+  if (curH <= dims.winH) state.y = 0
+  else { const maxY = (curH - dims.winH) / 2; state.y = Math.max(-maxY, Math.min(maxY, state.y)) }
   updateTransform(true)
 }
-
-/**
- * 拖拽开始
- */
+// 拖拽相关逻辑保持不变...
 const handleDragStart = (e) => {
-  // 仅在左键点击或触摸时触发
   if (e.type === 'mousedown' && e.button !== 0) return
-  e.preventDefault() // 防止默认拖拽图片行为
-  
+  e.preventDefault()
   state.isDragging = true
   const point = e.touches ? e.touches[0] : e
   state.startX = point.clientX
   state.startY = point.clientY
   state.lastX = state.x
   state.lastY = state.y
-  
-  // 拖拽开始，关闭动画，提升跟手度
   if (imageRef.value) imageRef.value.style.transition = 'none'
 }
-
-/**
- * 拖拽移动
- */
 const handleDragMove = (e) => {
   if (!state.isDragging) return
-  e.preventDefault() // 防止页面滚动
-  
+  e.preventDefault()
   const point = e.touches ? e.touches[0] : e
   const deltaX = point.clientX - state.startX
   const deltaY = point.clientY - state.startY
-  
-  // 更新位置 = 初始位置 + 移动距离
   state.x = state.lastX + deltaX
   state.y = state.lastY + deltaY
-  
-  // 拖拽过程中【不】强制限制边界，允许用户稍微拖出界（阻尼感），松手再弹回
   updateTransform(false)
 }
-
-/**
- * 拖拽结束
- */
 const handleDragEnd = () => {
   if (!state.isDragging) return
   state.isDragging = false
-  
-  // 松手时，计算边界并弹回
-  clampPosition()
+  const curW = dims.imgW * state.scale
+  const curH = dims.imgH * state.scale
+  if (curW <= dims.winW) state.x = 0
+  else { const maxX = (curW - dims.winW) / 2; state.x = Math.max(-maxX, Math.min(maxX, state.x)) }
+  if (curH <= dims.winH) state.y = 0
+  else { const maxY = (curH - dims.winH) / 2; state.y = Math.max(-maxY, Math.min(maxY, state.y)) }
   updateTransform(true)
 }
-
 </script>
 
 <style scoped>
@@ -489,6 +476,45 @@ const handleDragEnd = () => {
   transform: scale(1.05);
 }
 
+/* --- 新增：加载更多按钮样式 --- */
+.load-more-wrap {
+  text-align: center;
+  margin-top: 40px;
+  margin-bottom: 40px;
+}
+
+.load-more-btn {
+  background-color: #00c0e2;
+  color: #fff;
+  border: none;
+  padding: 12px 40px;
+  font-size: 20px;
+  border-radius: 30px;
+  cursor: pointer;
+  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+  transition: all 0.3s ease;
+  font-family: "楷体", "KaiTi", "STKaiti", serif;
+  font-weight: bold;
+}
+
+.load-more-btn:hover:not(:disabled) {
+  background-color: #00a0be;
+  transform: translateY(-2px);
+  box-shadow: 0 6px 10px rgba(0,0,0,0.15);
+}
+
+.load-more-btn:disabled {
+  background-color: #9cddec;
+  cursor: not-allowed;
+  transform: none;
+}
+
+.no-more-text {
+  color: #999;
+  font-size: 18px;
+  margin-top: 20px;
+}
+
 /* ============ 图片弹窗样式 ============ */
 .image-modal-mask {
   position: fixed;
@@ -496,31 +522,23 @@ const handleDragEnd = () => {
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.9); /* 深色背景 */
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
   z-index: 9999;
   overflow: hidden;
-  touch-action: none; /* 禁止iOS默认触摸行为 */
+  touch-action: none;
 }
 
 .image-modal-img {
-  /* 移除 max-width 等限制，尺寸完全由JS控制以保证缩放逻辑正确 */
-  /* 设置最大视口限制，防止初始加载过大，但允许缩放突破 */
   max-width: 100%; 
   max-height: 100%;
-  
   object-fit: contain;
-  
-  /* 关键：设置变换原点为中心，配合JS的translate计算 */
   transform-origin: center center;
-  
   cursor: grab;
   user-select: none;
   -webkit-user-drag: none;
-  
-  /* 开启硬件加速 */
   will-change: transform;
 }
 
@@ -550,6 +568,12 @@ const handleDragEnd = () => {
   }
   .group-image .mix-img-group {
     gap: 8px;
+  }
+  
+  /* 移动端加载按钮适配 */
+  .load-more-btn {
+    width: 80%;
+    padding: 12px 0;
   }
 }
 </style>
