@@ -1,167 +1,257 @@
 <template>
-  <div class="recent-activity-page">
-    <!-- 返回按钮 -->
-    <div class="back-button-section">
-      <button class="back-btn" @click="router.back()">
-        ← 返回主页
+  <div class="recent-page">
+    <h1 class="page-title">龙最近在做什么 🐉</h1>
+
+    <div class="nav-links">
+      <button class="nav-btn" @click="router.back()">
+        <span class="arrow-icon">←</span> 返回主页
       </button>
     </div>
 
-    <!-- 页面标题 -->
-    <div class="page-header">
-      <h1 class="page-title">龙最近在做什么 🐉</h1>
+    <div v-if="loading" class="loading-text">
+      正在打探龙的消息...
     </div>
 
-    <!-- 活动列表 -->
-    <div class="activity-list">
+    <div v-else class="list-container">
       <div 
         v-for="(item, index) in activityList" 
-        :key="index"
-        class="activity-item"
+        :key="item.id || index"
+        class="update-item"
+        @click="toggleExpand(index)"
       >
-        <!-- 标题按钮 -->
-        <button 
-          class="activity-title-btn" 
-          @click="toggleExpand(index)"
-        >
-          {{ item.title }}
-        </button>
+        <div class="item-header">
+          <span class="item-time">{{ formatTime(item.createTime) }}</span>
+          <span class="expand-icon">{{ expandedIndex === index ? '−' : '+' }}</span>
+        </div>
 
-        <!-- 详情内容（仅展开时显示） -->
+        <div class="item-title-text">
+          {{ item.title }}
+        </div>
+
         <div 
-          class="activity-content" 
-          v-if="expandedIndex === index"
+          class="item-content-wrapper" 
+          :class="{ 'is-expanded': expandedIndex === index }"
         >
-          {{ item.content || '🔒 内容保密，不可查看' }}
+          <div class="item-content">
+            <div class="divider"></div>
+            {{ item.content || '🔒 内容保密，不可查看' }}
+          </div>
         </div>
       </div>
     </div>
+    
+    <p class="no-more-text">—— 龙的行程都在这里啦 ——</p>
   </div>
 </template>
 
 <script setup>
-import { ref } from 'vue'
+import { ref, onMounted } from 'vue'
 import { useRouter } from 'vue-router'
 
 const router = useRouter()
+const activityList = ref([])
+const loading = ref(false)
 const expandedIndex = ref(-1)
 
-// 活动数据，你以后直接在这里修改内容即可
-const activityList = [
-  { title: '后端考核三（保密不可查看）', content: '' },
-  { title: '软件设计比赛', content: '我的小伙伴真的太棒啦，赞' },
-  { title: '算法学习', content: '期末后就一直摸鱼岛寒假，为了不让比赛报名变商业捐款而奋斗' },
-  { title: '个人博客', content: '这里没啥好看的，你看的不就是了吗' },
-  { title: '文远凌云（保密不可查看）', content: '' },
-  { title: '剩余的内容被藏进龙窝的缝隙里了', content: '' }
-]
+// 获取数据
+const fetchActivities = async () => {
+  loading.value = true
+  try {
+    const response = await fetch('https://xiaolongya.cn/blog/recent/list')
+    const res = await response.json()
+
+    if (res.code === 200) {
+      activityList.value = res.data
+    } else {
+      console.error('获取失败:', res.msg)
+    }
+  } catch (error) {
+    console.error('网络请求错误:', error)
+  } finally {
+    loading.value = false
+  }
+}
+
+// 格式化时间 (保留日期部分)
+const formatTime = (timeStr) => {
+  if (!timeStr) return ''
+  return timeStr.split(' ')[0]
+}
 
 // 切换展开/收起
 const toggleExpand = (index) => {
   expandedIndex.value = expandedIndex.value === index ? -1 : index
 }
+
+onMounted(() => {
+  fetchActivities()
+})
 </script>
 
 <style scoped>
-.recent-activity-page {
-  padding: 20px;
+/* 全局容器，保持宽度和字体一致 */
+.recent-page {
+  width: 90%;
   max-width: 800px;
-  margin: 0 auto;
+  margin: 40px auto;
+  padding: 0 20px;
   font-family: "楷体", "KaiTi", "STKaiti", serif;
-  background-color: #e6f7ff;
   min-height: 100vh;
 }
 
-.back-button-section {
-  margin-bottom: 20px;
-}
-
-.back-btn {
-  background: #6c757d;
-  color: white;
-  border: none;
-  padding: 8px 16px;
-  border-radius: 4px;
-  cursor: pointer;
-  font-size: 0.9rem;
-}
-
-.back-btn:hover {
-  background: #5a6268;
-}
-
-.page-header {
-  text-align: center;
-  margin-bottom: 30px;
-}
-
+/* 标题样式 - 复用 reference .page-title */
 .page-title {
-  font-size: 2.2rem;
-  color: #2f5496;
-  margin: 0;
-  font-weight: bold;
+  font-size: 64px;
+  color: #00c0e2;
+  text-align: center;
+  margin-bottom: 20px;
+  letter-spacing: 10px;
 }
 
-.activity-list {
-  display: flex;
-  flex-direction: column;
-  gap: 15px;
-}
-
-.activity-item {
-  background: white;
-  border-radius: 8px;
+/* 导航区样式 - 模仿 reference .repo-links */
+.nav-links {
+  text-align: center;
+  margin-bottom: 40px;
   padding: 15px;
-  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  background: #00c0e2; /* 青色背景 */
+  border-radius: 12px;
   border: 1px solid #e8e8e8;
 }
 
-.activity-title-btn {
-  width: 100%;
-  text-align: left;
-  background: transparent;
+/* 按钮样式 - 复用 reference .repo-link */
+.nav-btn {
+  display: inline-block;
+  padding: 10px 25px;
+  background: #2f5496; /* 深蓝背景 */
+  color: rgb(220, 132, 132); /* 参考代码中的粉红字 */
   border: none;
-  font-size: 1.1rem;
+  border-radius: 8px;
+  font-size: 18px;
+  cursor: pointer;
+  font-family: inherit;
+  font-weight: bold;
+  transition: all 0.3s ease;
+}
+
+.nav-btn:hover {
+  background: #1d3b6f;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(47, 84, 150, 0.3);
+  color: #fff;
+}
+
+.arrow-icon {
+  margin-right: 8px;
+  font-weight: bold;
+}
+
+/* 列表项卡片 - 复用 reference .update-item */
+.update-item {
+  background: #00c0e2; /* 青色卡片背景 */
+  padding: 20px 25px;
+  border-radius: 16px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  margin-bottom: 25px;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
+  position: relative;
+  overflow: hidden; /* 为了包含内部元素 */
+}
+
+.update-item:hover {
+  transform: translateY(-3px);
+  box-shadow: 0 6px 15px rgba(0, 192, 226, 0.3);
+}
+
+/* 头部布局 */
+.item-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  margin-bottom: 10px;
+}
+
+/* 时间样式 - 复用 reference .item-time */
+.item-time {
+  font-size: 24px; /* 稍微调小一点以适应列表 */
+  font-weight: 900;
+  color: #2f5496; /* 深蓝 */
+}
+
+.expand-icon {
+  font-size: 28px;
   color: #2f5496;
   font-weight: bold;
-  cursor: pointer;
-  padding: 10px 0;
-  border-bottom: 1px dashed #b3d8ff;
-  transition: color 0.3s ease;
 }
 
-.activity-title-btn:hover {
-  color: #1f3a6b;
+/* 标题样式 - 类似 reference .item-content 但作为标题显示 */
+.item-title-text {
+  font-size: 22px;
+  color: #fff; /* 在青色背景上用白色或深色，这里选白色增加对比度，或参考原设计的深色 */
+  font-weight: bold;
+  line-height: 1.4;
+  text-shadow: 0 1px 2px rgba(0,0,0,0.1);
 }
 
-.activity-content {
-  margin-top: 12px;
-  padding: 10px 0;
-  font-size: 1rem;
-  color: #333;
-  line-height: 1.6;
+/* 展开的内容区域 */
+.item-content-wrapper {
+  max-height: 0;
+  overflow: hidden;
+  transition: max-height 0.4s ease-in-out, opacity 0.4s ease;
+  opacity: 0;
 }
 
-/* 响应式适配 */
+.item-content-wrapper.is-expanded {
+  max-height: 500px; /* 足够展示内容的预设高度 */
+  opacity: 1;
+}
+
+.item-content {
+  margin-top: 15px;
+  font-size: 20px;
+  color: #333; /* 深灰内容字 */
+  line-height: 1.8;
+  background: rgba(255, 255, 255, 0.3); /* 半透明白色背景衬托文字 */
+  padding: 15px;
+  border-radius: 8px;
+}
+
+.divider {
+  height: 1px;
+  background: #2f5496;
+  opacity: 0.3;
+  margin-bottom: 10px;
+}
+
+/* 加载和底部文字 */
+.loading-text, .no-more-text {
+  text-align: center;
+  color: #999;
+  font-size: 18px;
+  margin-top: 30px;
+}
+
+/* 响应式适配 - 复用 reference @media */
 @media (max-width: 768px) {
-  .recent-activity-page {
+  .page-title {
+    font-size: 40px;
+    letter-spacing: 6px;
+  }
+  
+  .update-item {
     padding: 15px;
   }
 
-  .page-title {
-    font-size: 1.8rem;
+  .item-time {
+    font-size: 20px;
   }
 
-  .activity-item {
-    padding: 12px;
+  .item-title-text {
+    font-size: 18px;
   }
-
-  .activity-title-btn {
-    font-size: 0.95rem;
-  }
-
-  .activity-content {
-    font-size: 0.9rem;
+  
+  .item-content {
+    font-size: 16px;
   }
 }
 </style>
