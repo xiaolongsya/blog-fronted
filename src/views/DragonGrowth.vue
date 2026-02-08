@@ -152,11 +152,15 @@ const filteredCategories = computed(() => {
 /**
  * 跳转到分类详情：加nextTick保证弹窗关闭流畅
  */
-const goToCategory = async (categoryId) => {
-  if (!categoryId) return
+const goToCategory = async (growthId) => {
+  if (!growthId) return
   closeModal()
   await nextTick()
-  router.push(`/category/${categoryId}`)
+  // 修改为 query 形式
+  router.push({
+    path: '/category-detail', // 确保这个路径对应你的 CategoryDetail 组件
+    query: { id: growthId }
+  })
 }
 
 /**

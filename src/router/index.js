@@ -35,7 +35,7 @@ const routes = [
   },
   //龙的成长详细页
   {
-    path: '/category/:id',
+    path: '/category-detail',
     name: 'CategoryDetail',
     component: CategoryDetail,
     props: true

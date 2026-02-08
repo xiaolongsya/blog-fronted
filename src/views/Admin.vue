@@ -120,13 +120,13 @@
         <div class="modal-title danger-title">删除成长分类</div>
         <div class="modal-form-item">
           <label>请选择要删除的分类：</label>
-          <select v-model="deleteCategoryId" class="modal-select" required>
+          <select v-model="deletegrowthId" class="modal-select" required>
             <option value="" disabled>请选择分类</option>
             <option v-for="category in categoryList" :key="category.id" :value="category.id">{{ category.name }}（类型：{{ category.type }}）</option>
           </select>
         </div>
         <div class="modal-btn-group">
-          <button class="modal-submit-btn danger-btn" @click="submitDeleteCategory" :disabled="!deleteCategoryId || isSubmitting">
+          <button class="modal-submit-btn danger-btn" @click="submitDeleteCategory" :disabled="!deletegrowthId || isSubmitting">
             <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '删除中...' : '确认删除' }}
           </button>
           <button class="modal-close-btn" @click="closeDeleteCategoryModal" :disabled="isSubmitting">取消</button>
@@ -146,8 +146,8 @@
     <div class="modal-mask" v-if="showDeleteNodeStep2Modal" @click="closeDeleteNodeStep2Modal">
       <div class="modal-container" @click.stop style="width: 400px;">
         <div class="modal-title danger-title">删除成长节点（选择分类）</div>
-        <div class="modal-form-item"><select v-model="deleteNodeSelectedCategoryId" class="modal-select"><option v-for="c in deleteNodeFilteredCategoryList" :key="c.id" :value="c.id">{{ c.name }}</option></select></div>
-        <div class="modal-btn-group"><button class="modal-submit-btn" @click="confirmDeleteNodeStep2" :disabled="!deleteNodeSelectedCategoryId">下一步</button><button class="modal-close-btn" @click="closeDeleteNodeStep2Modal">取消</button></div>
+        <div class="modal-form-item"><select v-model="deleteNodeSelectedgrowthId" class="modal-select"><option v-for="c in deleteNodeFilteredCategoryList" :key="c.id" :value="c.id">{{ c.name }}</option></select></div>
+        <div class="modal-btn-group"><button class="modal-submit-btn" @click="confirmDeleteNodeStep2" :disabled="!deleteNodeSelectedgrowthId">下一步</button><button class="modal-close-btn" @click="closeDeleteNodeStep2Modal">取消</button></div>
       </div>
     </div>
     <div class="modal-mask" v-if="showDeleteNodeStep3Modal" @click="closeDeleteNodeStep3Modal">
@@ -293,7 +293,7 @@ const isSubmitting = ref(false)
 const categoryList = ref([])
 const selectedCategoryType = ref('')
 const deleteNodeSelectedType = ref('')
-const deleteNodeSelectedCategoryId = ref('')
+const deleteNodeSelectedgrowthId = ref('')
 const deleteNodeList = ref([])
 
 const recentList = ref([])
@@ -303,7 +303,7 @@ const deleteRecentId = ref('')
 const logForm = ref({ content: '', imgUrls: [] })
 const categoryForm = ref({ name: '', type: '' })
 const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
-const deleteCategoryId = ref('')
+const deletegrowthId = ref('')
 const deleteNodeId = ref('')
 
 // Ref绑定
@@ -328,9 +328,9 @@ const getCategoryList = async () => {
     if (res.data.code === 200) categoryList.value = res.data.data || []
   } catch (err) { console.error(err) }
 }
-const getNodeListByCategoryId = async (categoryId) => {
+const getNodeListBygrowthId = async (growthId) => {
   try {
-    const res = await axios.get(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`)
+    const res = await axios.get(`https://xiaolongya.cn/blog/node/list?growthId=${growthId}`)
     if (res.data.code === 200) deleteNodeList.value = res.data.data || []
   } catch (err) { alert(`获取节点列表失败：${err.message}`) }
 }
@@ -399,9 +399,9 @@ const confirmCloseAddNodeModal = () => {
 // ============ 普通关闭逻辑 (无数据丢失风险) ============
 const closeGrowthMainModal = () => { showGrowthMainModal.value = false }
 const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = '' }
-const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deleteCategoryId.value = '' }
+const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deletegrowthId.value = '' }
 const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = '' }
-const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedCategoryId.value = '' }
+const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedgrowthId.value = '' }
 const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; deleteNodeList.value = [] }
 const closeRecentMainModal = () => { showRecentMainModal.value = false }
 const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false }
@@ -409,8 +409,8 @@ const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false }
 // 打开弹窗方法
 const openAddCategoryModal = async () => { showGrowthMainModal.value = false; await nextTick(); showAddCategoryModal.value = true }
 const openSelectCategoryTypeModal = async () => { showGrowthMainModal.value = false; await nextTick(); showSelectTypeModal.value = true; selectedCategoryType.value = '' }
-const openDeleteCategoryModal = async () => { showGrowthMainModal.value = false; await getCategoryList(); await nextTick(); showDeleteCategoryModal.value = true; deleteCategoryId.value = '' }
-const openDeleteNodeStep1Modal = async () => { showGrowthMainModal.value = false; await nextTick(); showDeleteNodeStep1Modal.value = true; deleteNodeSelectedType.value = ''; deleteNodeSelectedCategoryId.value = ''; deleteNodeId.value = '' }
+const openDeleteCategoryModal = async () => { showGrowthMainModal.value = false; await getCategoryList(); await nextTick(); showDeleteCategoryModal.value = true; deletegrowthId.value = '' }
+const openDeleteNodeStep1Modal = async () => { showGrowthMainModal.value = false; await nextTick(); showDeleteNodeStep1Modal.value = true; deleteNodeSelectedType.value = ''; deleteNodeSelectedgrowthId.value = ''; deleteNodeId.value = '' }
 
 const openRecentUploadModal = () => {
   showRecentMainModal.value = false
@@ -427,7 +427,7 @@ const openRecentDeleteModal = async () => {
 // 确认步骤
 const confirmCategoryType = async () => { if (!selectedCategoryType.value) return; await getCategoryList(); await nextTick(); showSelectTypeModal.value = false; showAddNodeModal.value = true }
 const confirmDeleteNodeStep1 = async () => { if (!deleteNodeSelectedType.value) return; await getCategoryList(); await nextTick(); showDeleteNodeStep1Modal.value = false; showDeleteNodeStep2Modal.value = true }
-const confirmDeleteNodeStep2 = async () => { if (!deleteNodeSelectedCategoryId.value) return; await getNodeListByCategoryId(deleteNodeSelectedCategoryId.value); await nextTick(); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
+const confirmDeleteNodeStep2 = async () => { if (!deleteNodeSelectedgrowthId.value) return; await getNodeListBygrowthId(deleteNodeSelectedgrowthId.value); await nextTick(); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
 
 // 图片上传通用方法
 const uploadImage = async (file) => {
@@ -474,9 +474,9 @@ const submitNode = async () => {
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
 const submitDeleteCategory = async () => {
-  if (!deleteCategoryId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
+  if (!deletegrowthId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
   try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deleteCategoryId.value}`)
+    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deletegrowthId.value}`)
     if (res.data.code === 200) { alert('成功'); closeDeleteCategoryModal(); getCategoryList() } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
@@ -484,7 +484,7 @@ const submitDeleteNode = async () => {
   if (!deleteNodeId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
   try {
     const res = await axios.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
-    if (res.data.code === 200) { alert('成功'); closeDeleteNodeStep3Modal(); getNodeListByCategoryId(deleteNodeSelectedCategoryId.value) } else throw new Error(res.data.msg)
+    if (res.data.code === 200) { alert('成功'); closeDeleteNodeStep3Modal(); getNodeListBygrowthId(deleteNodeSelectedgrowthId.value) } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
 const submitLog = async () => {
