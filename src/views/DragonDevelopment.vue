@@ -56,13 +56,13 @@
         class="image-modal-img" 
         @click.stop
         @wheel.prevent="handleWheel"
-        @mousedown="handleDragStart"
-        @mousemove="handleDragMove"
-        @mouseup="handleDragEnd"
-        @mouseleave="handleDragEnd"
-        @touchstart="handleDragStart"
-        @touchmove="handleDragMove"
-        @touchend="handleDragEnd"
+        @mousedown="handleMouseDown"
+        @mousemove="handleMouseMove"
+        @mouseup="handleMouseUp"
+        @mouseleave="handleMouseUp"
+        @touchstart="handleTouchStart"
+        @touchmove="handleTouchMove"
+        @touchend="handleTouchEnd"
       >
     </div>
   </div>
@@ -80,14 +80,26 @@ const pageSize = 5
 const hasMore = ref(true)
 const isLoading = ref(false)
 
-// ================= 图片查看器核心逻辑 (从 CategoryDetail 迁移) =================
+// ================= 图片查看器核心逻辑 (升级版) =================
 const modalImageRef = ref(null)
-// 状态管理：缩放比例、位移XY、拖拽状态、起始坐标、上一帧坐标
-let state = { scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 }
-// 尺寸记录：图片宽高、窗口宽高
+
+// 状态管理
+let state = { 
+  scale: 1, 
+  x: 0, 
+  y: 0, 
+  isDragging: false, 
+  isPinching: false, // 新增：是否正在捏合
+  startX: 0, 
+  startY: 0, 
+  lastX: 0, 
+  lastY: 0,
+  startDist: 0,      // 新增：捏合开始时的距离
+  startScale: 1      // 新增：捏合开始时的缩放比例
+}
+
 let dims = { imgW: 0, imgH: 0, winW: 0, winH: 0 }
 
-// 监听窗口大小变化
 const updateDims = () => {
   if (!bigImageUrl.value) return
   dims.winW = window.innerWidth
@@ -95,7 +107,7 @@ const updateDims = () => {
 }
 
 onMounted(() => {
-  fetchUpdateList() // 初始加载列表
+  fetchUpdateList()
   window.addEventListener('resize', updateDims)
 })
 
@@ -103,16 +115,19 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateDims)
 })
 
-// 打开图片
 const showBigImage = (url) => {
   if (!url) return
   bigImageUrl.value = url
   // 重置状态
-  state = { scale: 1, x: 0, y: 0, isDragging: false, startX: 0, startY: 0, lastX: 0, lastY: 0 }
+  state = { 
+    scale: 1, x: 0, y: 0, 
+    isDragging: false, isPinching: false,
+    startX: 0, startY: 0, lastX: 0, lastY: 0,
+    startDist: 0, startScale: 1
+  }
   
   nextTick(() => {
     if (!modalImageRef.value) return
-    // 初始化尺寸
     dims.winW = window.innerWidth
     dims.winH = window.innerHeight
     dims.imgW = modalImageRef.value.offsetWidth
@@ -121,83 +136,141 @@ const showBigImage = (url) => {
   })
 }
 
-// 关闭图片
 const closeBigImage = () => {
   bigImageUrl.value = ''
 }
 
-// 更新 CSS Transform
 const updateTransform = (animation = true) => {
   if (!modalImageRef.value) return
-  // 拖拽时关闭过渡动画，提升跟手性；释放后开启，提升平滑度
-  modalImageRef.value.style.transition = animation ? 'transform 0.15s cubic-bezier(0.2, 0, 0, 1)' : 'none'
+  modalImageRef.value.style.transition = animation ? 'transform 0.1s linear' : 'none'
   modalImageRef.value.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`
 }
 
-// 滚轮缩放
+// ----------------- PC端鼠标事件 -----------------
 const handleWheel = (e) => {
-  if (!modalImageRef.value) return
-  // 滚轮向上(deltaY<0)放大，向下缩小
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   let newScale = state.scale + delta
-  // 限制缩放范围 [0.5, 5]
   newScale = Math.max(0.5, Math.min(5, newScale))
   
   if (Math.abs(newScale - state.scale) < 0.01) return
 
-  // 计算缩放比例，用于修正位置（让图片中心相对稳定）
   const ratio = newScale / state.scale
   state.scale = newScale
   state.x *= ratio
   state.y *= ratio
 
-  // 边界检查
   clampPosition()
   updateTransform(true)
 }
 
-// 拖拽开始 (兼容鼠标和触摸)
-const handleDragStart = (e) => {
-  // 如果是鼠标右键，忽略
-  if (e.type === 'mousedown' && e.button !== 0) return
+const handleMouseDown = (e) => {
+  if (e.button !== 0) return
   e.preventDefault()
-  
   state.isDragging = true
-  const point = e.touches ? e.touches[0] : e
-  state.startX = point.clientX
-  state.startY = point.clientY
+  state.startX = e.clientX
+  state.startY = e.clientY
   state.lastX = state.x
   state.lastY = state.y
-  
-  // 拖拽开始时移除过渡，避免延迟
   if (modalImageRef.value) modalImageRef.value.style.transition = 'none'
 }
 
-// 拖拽移动
-const handleDragMove = (e) => {
+const handleMouseMove = (e) => {
   if (!state.isDragging) return
-  e.preventDefault() // 防止触发原生滚动
-  
-  const point = e.touches ? e.touches[0] : e
-  const deltaX = point.clientX - state.startX
-  const deltaY = point.clientY - state.startY
-  
+  e.preventDefault()
+  const deltaX = e.clientX - state.startX
+  const deltaY = e.clientY - state.startY
   state.x = state.lastX + deltaX
   state.y = state.lastY + deltaY
-  
   updateTransform(false)
 }
 
-// 拖拽结束
-const handleDragEnd = () => {
+const handleMouseUp = () => {
   if (!state.isDragging) return
   state.isDragging = false
-  // 结束后进行边界修正
   clampPosition()
   updateTransform(true)
 }
 
-// 边界限制辅助函数：防止图片移出视野太远
+// ----------------- 移动端触摸事件 (核心修改) -----------------
+
+// 计算两点距离
+const getDistance = (touches) => {
+  return Math.hypot(
+    touches[0].clientX - touches[1].clientX,
+    touches[0].clientY - touches[1].clientY
+  )
+}
+
+const handleTouchStart = (e) => {
+  if (e.touches.length === 2) {
+    // === 双指：开始缩放 ===
+    state.isPinching = true
+    state.isDragging = false 
+    state.startDist = getDistance(e.touches)
+    state.startScale = state.scale
+  } else if (e.touches.length === 1) {
+    // === 单指：开始拖动 ===
+    state.isDragging = true // 注意：这里不设为false，允许单指拖动
+    state.isPinching = false
+    state.startX = e.touches[0].clientX
+    state.startY = e.touches[0].clientY
+    state.lastX = state.x
+    state.lastY = state.y
+  }
+  
+  // 触摸开始时移除过渡，保证跟手
+  if (modalImageRef.value) modalImageRef.value.style.transition = 'none'
+}
+
+const handleTouchMove = (e) => {
+  e.preventDefault() // 阻止默认滚动
+  
+  if (state.isPinching && e.touches.length === 2) {
+    // === 双指移动 ===
+    const curDist = getDistance(e.touches)
+    if (state.startDist > 0) {
+      const scaleRatio = curDist / state.startDist
+      let newScale = state.startScale * scaleRatio
+      // 限制缩放范围
+      newScale = Math.max(0.5, Math.min(5, newScale))
+      
+      // 保持中心点缩放逻辑（简化版：按比例调整位移）
+      const ratio = newScale / state.scale
+      state.scale = newScale
+      state.x *= ratio
+      state.y *= ratio
+      
+      updateTransform(false)
+    }
+  } else if (state.isDragging && e.touches.length === 1 && !state.isPinching) {
+    // === 单指移动 ===
+    const deltaX = e.touches[0].clientX - state.startX
+    const deltaY = e.touches[0].clientY - state.startY
+    state.x = state.lastX + deltaX
+    state.y = state.lastY + deltaY
+    updateTransform(false)
+  }
+}
+
+const handleTouchEnd = (e) => {
+  // 如果手指全部离开，重置所有状态并进行边界修正
+  if (e.touches.length === 0) {
+    state.isDragging = false
+    state.isPinching = false
+    clampPosition()
+    updateTransform(true)
+  } else if (e.touches.length === 1) {
+    // 如果从双指变成单指，重新初始化单指拖动状态，防止跳变
+    state.isPinching = false
+    state.isDragging = true
+    state.startX = e.touches[0].clientX
+    state.startY = e.touches[0].clientY
+    state.lastX = state.x
+    state.lastY = state.y
+  }
+}
+
+// 边界检查
 const clampPosition = () => {
   const curW = dims.imgW * state.scale
   const curH = dims.imgH * state.scale
@@ -220,8 +293,6 @@ const clampPosition = () => {
 }
 
 // ================= 原有业务逻辑 =================
-
-// 格式化内容
 const formatContent = (content) => {
   if (!content) return ''
   const escapeHtml = (str) => {
@@ -235,7 +306,6 @@ const formatContent = (content) => {
   return escapeHtml(content).replace(/\n/g, '<br>')
 }
 
-// 获取列表
 const fetchUpdateList = async () => {
   if (isLoading.value) return 
   isLoading.value = true
@@ -417,14 +487,14 @@ const loadMore = () => {
   margin-top: 20px;
 }
 
-/* ============ 核心修改：图片弹窗样式 ============ */
+/* ============ 图片弹窗样式 ============ */
 .image-modal-mask {
   position: fixed;
   top: 0;
   left: 0;
   width: 100vw;
   height: 100vh;
-  background: rgba(0, 0, 0, 0.9); /* 加深背景颜色，突出主体 */
+  background: rgba(0, 0, 0, 0.9);
   display: flex;
   justify-content: center;
   align-items: center;
@@ -438,14 +508,14 @@ const loadMore = () => {
   max-height: 100%;
   object-fit: contain;
   transform-origin: center center;
-  cursor: grab; /* 鼠标手势 */
+  cursor: grab;
   user-select: none;
   -webkit-user-drag: none;
-  will-change: transform; /* 性能优化 */
+  will-change: transform;
 }
 
 .image-modal-img:active {
-  cursor: grabbing; /* 拖拽时手势 */
+  cursor: grabbing;
 }
 
 @media (max-width: 768px) {

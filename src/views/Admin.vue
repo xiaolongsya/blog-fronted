@@ -30,7 +30,7 @@
       </div>
     </div>
 
-    <div class="modal-mask" v-if="showAddCategoryModal" @click="closeAddCategoryModal">
+    <div class="modal-mask" v-if="showAddCategoryModal" @click="confirmCloseAddCategoryModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">添加成长分类</div>
         <div class="modal-form-item">
@@ -51,7 +51,7 @@
           <button class="modal-submit-btn" @click="submitCategory" :disabled="!categoryForm.name.trim() || !categoryForm.type || isSubmitting">
             <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '提交中...' : '提交分类' }}
           </button>
-          <button class="modal-close-btn" @click="closeAddCategoryModal" :disabled="isSubmitting">取消</button>
+          <button class="modal-close-btn" @click="confirmCloseAddCategoryModal" :disabled="isSubmitting">取消</button>
         </div>
       </div>
     </div>
@@ -110,7 +110,7 @@
           <button class="modal-submit-btn" @click="submitNode" :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting || filteredCategoryList.length === 0">
             <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '提交中...' : '提交节点' }}
           </button>
-          <button class="modal-close-btn" @click="closeAddNodeModal" :disabled="isSubmitting">取消</button>
+          <button class="modal-close-btn" @click="confirmCloseAddNodeModal" :disabled="isSubmitting">取消</button>
         </div>
       </div>
     </div>
@@ -158,7 +158,7 @@
       </div>
     </div>
 
-    <div class="modal-mask" v-if="showLogModal" @click="closeLogModal">
+    <div class="modal-mask" v-if="showLogModal" @click="confirmCloseLogModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">更新龙岛日志</div>
         <div class="modal-form-item">
@@ -176,7 +176,7 @@
         </div>
         <div class="modal-btn-group">
           <button class="modal-submit-btn" @click="submitLog" :disabled="!logForm.content.trim() || isSubmitting"><span v-if="isSubmitting" class="loading-icon">🔄</span>提交日志</button>
-          <button class="modal-close-btn" @click="closeLogModal" :disabled="isSubmitting">取消</button>
+          <button class="modal-close-btn" @click="confirmCloseLogModal" :disabled="isSubmitting">取消</button>
         </div>
       </div>
     </div>
@@ -192,7 +192,7 @@
       </div>
     </div>
 
-    <div class="modal-mask" v-if="showRecentUploadModal" @click="closeRecentUploadModal">
+    <div class="modal-mask" v-if="showRecentUploadModal" @click="confirmCloseRecentUploadModal">
       <div class="modal-container" @click.stop>
         <div class="modal-title">上传最近事项</div>
         <div class="modal-form-item">
@@ -221,7 +221,7 @@
             <span v-if="isSubmitting" class="loading-icon">🔄</span>
             {{ isSubmitting ? '上传中...' : '确认上传' }}
           </button>
-          <button class="modal-close-btn" @click="closeRecentUploadModal" :disabled="isSubmitting">取消</button>
+          <button class="modal-close-btn" @click="confirmCloseRecentUploadModal" :disabled="isSubmitting">取消</button>
         </div>
       </div>
     </div>
@@ -264,19 +264,17 @@
 import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
 
-// 圆圈按钮列表 - 修改了第三个按钮
+// 圆圈按钮列表
 const circleList = [
   { content: "更新龙岛日志", type: "log" },
   { content: "龙的成长记录", type: "growth" },
-  { content: "更新最近事项", type: "recent" }, // <--- 修改此处
+  { content: "更新最近事项", type: "recent" },
   { content: "暂无", type: "none" },
   { content: "暂无", type: "none" }
 ];
 
 // ============ 状态管理：弹窗显示控制 ============
-// 1. 日志
 const showLogModal = ref(false)
-// 2. 成长记录
 const showGrowthMainModal = ref(false)
 const showAddCategoryModal = ref(false)
 const showSelectTypeModal = ref(false)
@@ -285,7 +283,6 @@ const showDeleteCategoryModal = ref(false)
 const showDeleteNodeStep1Modal = ref(false)
 const showDeleteNodeStep2Modal = ref(false)
 const showDeleteNodeStep3Modal = ref(false)
-// 3. 最近事项 (新增)
 const showRecentMainModal = ref(false)
 const showRecentUploadModal = ref(false)
 const showRecentDeleteModal = ref(false)
@@ -293,26 +290,23 @@ const showRecentDeleteModal = ref(false)
 const isSubmitting = ref(false)
 
 // ============ 数据存储 ============
-// 成长记录相关
 const categoryList = ref([])
 const selectedCategoryType = ref('')
 const deleteNodeSelectedType = ref('')
 const deleteNodeSelectedCategoryId = ref('')
 const deleteNodeList = ref([])
 
-// 最近事项相关 (新增)
-const recentList = ref([]) // 用于删除下拉框
+const recentList = ref([])
 const recentForm = ref({ title: '', content: '' })
 const deleteRecentId = ref('')
 
-// 表单数据
 const logForm = ref({ content: '', imgUrls: [] })
 const categoryForm = ref({ name: '', type: '' })
 const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
 const deleteCategoryId = ref('')
 const deleteNodeId = ref('')
 
-// Ref绑定（文本框 + 两个隐藏文件框）
+// Ref绑定
 const nodeContentInputRef = ref(null)
 const insertImgFileInput = ref(null)
 const uploadImgFileInput = ref(null)
@@ -327,24 +321,19 @@ const deleteNodeFilteredCategoryList = computed(() => {
   return categoryList.value.filter(category => category.type === deleteNodeSelectedType.value)
 })
 
-// ================= API 请求 =================
-
-// 获取分类列表
+// ================= API 请求 (保持不变) =================
 const getCategoryList = async () => {
   try {
     const res = await axios.get('https://xiaolongya.cn/blog/growth/list')
     if (res.data.code === 200) categoryList.value = res.data.data || []
   } catch (err) { console.error(err) }
 }
-// 获取指定分类下的节点列表
 const getNodeListByCategoryId = async (categoryId) => {
   try {
     const res = await axios.get(`https://xiaolongya.cn/blog/node/list?growthId=${categoryId}`)
     if (res.data.code === 200) deleteNodeList.value = res.data.data || []
   } catch (err) { alert(`获取节点列表失败：${err.message}`) }
 }
-
-// [新增] 获取最近事项列表 (用于删除下拉框)
 const getRecentList = async () => {
   try {
     const res = await axios.get('https://xiaolongya.cn/blog/recent/list')
@@ -359,10 +348,6 @@ const getRecentList = async () => {
 }
 
 // ================= 交互逻辑 =================
-
-/**
- * 处理圆圈按钮点击
- */
 const handleCircleClick = async (item) => {
   if (item.type === "log") {
     await nextTick()
@@ -371,83 +356,55 @@ const handleCircleClick = async (item) => {
     await getCategoryList()
     await nextTick()
     showGrowthMainModal.value = true
-  } else if (item.type === "recent") { // <--- 新增处理
+  } else if (item.type === "recent") {
     await nextTick()
     showRecentMainModal.value = true
   }
 }
 
-// ============ 最近事项弹窗逻辑 (新增) ============
+// ============ [核心逻辑] 安全关闭弹窗函数 ============
 
-// 打开/关闭 主弹窗
+// 1. 安全关闭添加分类弹窗
+const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' } }
+const confirmCloseAddCategoryModal = () => {
+  const hasData = categoryForm.value.name.trim() || categoryForm.value.type
+  if (!hasData) { closeAddCategoryModal(); return }
+  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeAddCategoryModal()
+}
+
+// 2. 安全关闭龙岛日志弹窗
+const closeLogModal = () => { showLogModal.value = false; logForm.value = { content: '', imgUrls: [] } }
+const confirmCloseLogModal = () => {
+  const hasData = logForm.value.content.trim() || logForm.value.imgUrls.length > 0
+  if (!hasData) { closeLogModal(); return }
+  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeLogModal()
+}
+
+// 3. 安全关闭最近事项上传弹窗
+const closeRecentUploadModal = () => { showRecentUploadModal.value = false }
+const confirmCloseRecentUploadModal = () => {
+  const hasData = recentForm.value.title.trim() || recentForm.value.content.trim()
+  if (!hasData) { closeRecentUploadModal(); return }
+  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeRecentUploadModal()
+}
+
+// 4. 安全关闭添加成长节点弹窗 (你原有的逻辑)
+const closeAddNodeModal = () => { showAddNodeModal.value = false; nodeForm.value = { growthId: '', content: '', imgUrls: [] }; selectedCategoryType.value = '' }
+const confirmCloseAddNodeModal = () => {
+  const hasData = nodeForm.value.growthId || nodeForm.value.content.trim() || nodeForm.value.imgUrls.length > 0
+  if (!hasData) { closeAddNodeModal(); return }
+  if (confirm('⚠️ 警告：数据将丢失，确认关闭？')) closeAddNodeModal()
+}
+
+// ============ 普通关闭逻辑 (无数据丢失风险) ============
+const closeGrowthMainModal = () => { showGrowthMainModal.value = false }
+const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = '' }
+const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deleteCategoryId.value = '' }
+const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = '' }
+const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedCategoryId.value = '' }
+const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; deleteNodeList.value = [] }
 const closeRecentMainModal = () => { showRecentMainModal.value = false }
-
-// 打开/关闭 上传弹窗
-const openRecentUploadModal = () => {
-  showRecentMainModal.value = false
-  recentForm.value = { title: '', content: '' } // 重置表单
-  showRecentUploadModal.value = true
-}
-const closeRecentUploadModal = () => {
-  showRecentUploadModal.value = false
-}
-
-// 打开/关闭 删除弹窗
-const openRecentDeleteModal = async () => {
-  showRecentMainModal.value = false
-  await getRecentList() // 获取数据供下拉框使用
-  deleteRecentId.value = ''
-  showRecentDeleteModal.value = true
-}
-const closeRecentDeleteModal = () => {
-  showRecentDeleteModal.value = false
-}
-
-// [新增] 提交上传最近事项
-const submitRecent = async () => {
-  if (!recentForm.value.title.trim()) return
-  isSubmitting.value = true
-  try {
-    const res = await axios.post('https://xiaolongya.cn/blog/recent/upload', {
-      title: recentForm.value.title,
-      content: recentForm.value.content || '' // 允许为空
-    })
-    if (res.data.code === 200) {
-      alert('上传成功！')
-      closeRecentUploadModal()
-    } else {
-      throw new Error(res.data.msg || '上传失败')
-    }
-  } catch (err) {
-    alert(`上传错误: ${err.message}`)
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-// [新增] 提交删除最近事项
-const submitDeleteRecent = async () => {
-  if (!deleteRecentId.value) return
-  if (!confirm('确认删除该事项吗？')) return
-
-  isSubmitting.value = true
-  try {
-    // 根据接口文档，删除是 POST 方法且 id 在 query 参数中
-    const res = await axios.post(`https://xiaolongya.cn/blog/recent/delete?id=${deleteRecentId.value}`)
-    if (res.data.code === 200) {
-      alert('删除成功！')
-      closeRecentDeleteModal()
-    } else {
-      throw new Error(res.data.msg || '删除失败')
-    }
-  } catch (err) {
-    alert(`删除错误: ${err.message}`)
-  } finally {
-    isSubmitting.value = false
-  }
-}
-
-// ============ 原有逻辑保持不变 (为简洁略缩，但功能保留) ============
+const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false }
 
 // 打开弹窗方法
 const openAddCategoryModal = async () => { showGrowthMainModal.value = false; await nextTick(); showAddCategoryModal.value = true }
@@ -455,26 +412,22 @@ const openSelectCategoryTypeModal = async () => { showGrowthMainModal.value = fa
 const openDeleteCategoryModal = async () => { showGrowthMainModal.value = false; await getCategoryList(); await nextTick(); showDeleteCategoryModal.value = true; deleteCategoryId.value = '' }
 const openDeleteNodeStep1Modal = async () => { showGrowthMainModal.value = false; await nextTick(); showDeleteNodeStep1Modal.value = true; deleteNodeSelectedType.value = ''; deleteNodeSelectedCategoryId.value = ''; deleteNodeId.value = '' }
 
+const openRecentUploadModal = () => {
+  showRecentMainModal.value = false
+  recentForm.value = { title: '', content: '' }
+  showRecentUploadModal.value = true
+}
+const openRecentDeleteModal = async () => {
+  showRecentMainModal.value = false
+  await getRecentList()
+  deleteRecentId.value = ''
+  showRecentDeleteModal.value = true
+}
+
 // 确认步骤
 const confirmCategoryType = async () => { if (!selectedCategoryType.value) return; await getCategoryList(); await nextTick(); showSelectTypeModal.value = false; showAddNodeModal.value = true }
 const confirmDeleteNodeStep1 = async () => { if (!deleteNodeSelectedType.value) return; await getCategoryList(); await nextTick(); showDeleteNodeStep1Modal.value = false; showDeleteNodeStep2Modal.value = true }
 const confirmDeleteNodeStep2 = async () => { if (!deleteNodeSelectedCategoryId.value) return; await getNodeListByCategoryId(deleteNodeSelectedCategoryId.value); await nextTick(); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
-
-// 关闭弹窗逻辑
-const closeGrowthMainModal = () => { showGrowthMainModal.value = false }
-const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' } }
-const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = '' }
-const closeAddNodeModal = () => { showAddNodeModal.value = false; nodeForm.value = { growthId: '', content: '', imgUrls: [] }; selectedCategoryType.value = '' }
-const confirmCloseAddNodeModal = () => {
-  const hasData = nodeForm.value.growthId || nodeForm.value.content.trim() || nodeForm.value.imgUrls.length > 0
-  if (!hasData) { closeAddNodeModal(); return }
-  if (confirm('⚠️ 警告：数据将丢失，确认关闭？')) closeAddNodeModal()
-}
-const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deleteCategoryId.value = '' }
-const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = '' }
-const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedCategoryId.value = '' }
-const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; deleteNodeList.value = [] }
-const closeLogModal = () => { showLogModal.value = false; logForm.value = { content: '', imgUrls: [] } }
 
 // 图片上传通用方法
 const uploadImage = async (file) => {
@@ -505,7 +458,7 @@ const handleImgError = (idx) => { alert('图片无效'); removeImage(idx) }
 const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 const handleNodeImgError = (idx) => { alert('图片无效'); removeNodeImage(idx) }
 
-// 提交成长分类
+// 提交逻辑
 const submitCategory = async () => {
   const { name, type } = categoryForm.value; if (!name.trim() || !type) return; isSubmitting.value = true
   try {
@@ -513,7 +466,6 @@ const submitCategory = async () => {
     if (res.data.code === 200) { alert('成功'); closeAddCategoryModal(); getCategoryList() } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
-// 提交成长节点
 const submitNode = async () => {
   const { growthId, content, imgUrls } = nodeForm.value; if (!growthId || !content.trim()) return; isSubmitting.value = true
   try {
@@ -521,7 +473,6 @@ const submitNode = async () => {
     if (res.data.code === 200) { alert('成功'); closeAddNodeModal() } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
-// 提交删除成长分类
 const submitDeleteCategory = async () => {
   if (!deleteCategoryId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
   try {
@@ -529,7 +480,6 @@ const submitDeleteCategory = async () => {
     if (res.data.code === 200) { alert('成功'); closeDeleteCategoryModal(); getCategoryList() } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
-// 提交删除成长节点
 const submitDeleteNode = async () => {
   if (!deleteNodeId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
   try {
@@ -537,13 +487,50 @@ const submitDeleteNode = async () => {
     if (res.data.code === 200) { alert('成功'); closeDeleteNodeStep3Modal(); getNodeListByCategoryId(deleteNodeSelectedCategoryId.value) } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
 }
-// 提交日志
 const submitLog = async () => {
   const content = logForm.value.content.trim(); if (!content) return; isSubmitting.value = true
   try {
     const res = await axios.post('https://xiaolongya.cn/blog/development/upload', { content, imgUrls: logForm.value.imgUrls })
     if (res.data.code === 200) { alert('成功'); closeLogModal() } else throw new Error(res.data.msg)
   } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
+}
+const submitRecent = async () => {
+  if (!recentForm.value.title.trim()) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/recent/upload', {
+      title: recentForm.value.title,
+      content: recentForm.value.content || ''
+    })
+    if (res.data.code === 200) {
+      alert('上传成功！')
+      closeRecentUploadModal()
+    } else {
+      throw new Error(res.data.msg || '上传失败')
+    }
+  } catch (err) {
+    alert(`上传错误: ${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
+}
+const submitDeleteRecent = async () => {
+  if (!deleteRecentId.value) return
+  if (!confirm('确认删除该事项吗？')) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post(`https://xiaolongya.cn/blog/recent/delete?id=${deleteRecentId.value}`)
+    if (res.data.code === 200) {
+      alert('删除成功！')
+      closeRecentDeleteModal()
+    } else {
+      throw new Error(res.data.msg || '删除失败')
+    }
+  } catch (err) {
+    alert(`删除错误: ${err.message}`)
+  } finally {
+    isSubmitting.value = false
+  }
 }
 
 const formatTime = (timeStr) => {
@@ -556,7 +543,7 @@ onMounted(() => { getCategoryList() })
 </script>
 
 <style scoped>
-/* 样式保持原样 */
+/* 样式保持原样，无需修改 */
 .admin-page {
   width: 90%;
   max-width: 1200px;
