@@ -1,5 +1,5 @@
 <template>
-  <div class="development-page">
+  <div class="development-page" id="dev-anchor">
     <h1 class="page-title">龙岛的发展</h1>
     
     <div class="repo-links">
@@ -23,6 +23,10 @@
       </a>
     </div>
 
+    <div v-if="isLoading" style="text-align:center; padding: 20px; font-size: 18px; color: #00c0e2;">
+      🌀 正在读取历史记录...
+    </div>
+
     <div class="update-item" v-for="(item, idx) in updateList" :key="idx">
       <div class="item-time">{{ item.time }}</div>
       <div class="item-content" v-html="formatContent(item.content)"></div>
@@ -37,16 +41,37 @@
       </div>
     </div>
 
-    <div class="load-more-wrap">
+    <div v-if="!isLoading && updateList.length === 0" class="no-more-text">
+      暂无更新记录
+    </div>
+
+    <div class="pagination-box" v-if="totalCount > 0">
       <button 
-        v-if="hasMore" 
-        class="load-more-btn" 
-        @click="loadMore" 
-        :disabled="isLoading"
+        class="page-btn prev-btn" 
+        :disabled="pageNum === 1" 
+        @click="changePage(pageNum - 1)"
       >
-        {{ isLoading ? '加载中...' : '查看更多' }}
+        &lt;
       </button>
-      <p v-else class="no-more-text">—— 到底啦，没有更多记录了 ——</p>
+
+      <button 
+        v-for="(p, index) in displayPageNums" 
+        :key="index"
+        class="page-btn number-btn"
+        :class="{ 'active': pageNum === p, 'dots': p === '...' }"
+        :disabled="p === '...'"
+        @click="p !== '...' && changePage(p)"
+      >
+        {{ p }}
+      </button>
+
+      <button 
+        class="page-btn next-btn" 
+        :disabled="pageNum === totalPages" 
+        @click="changePage(pageNum + 1)"
+      >
+        &gt;
+      </button>
     </div>
 
     <div class="image-modal-mask" v-if="bigImageUrl" @click="closeBigImage">
@@ -69,35 +94,83 @@
 </template>
 
 <script setup>
-import { ref, onMounted, onUnmounted, nextTick } from 'vue'
+import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
 
 const updateList = ref([])
 const bigImageUrl = ref('')
 
 // 分页相关变量
 const pageNum = ref(1)
-const pageSize = 5
-const hasMore = ref(true)
+const pageSize = 5 // 每页显示5条
+const totalCount = ref(0) // 总条数
 const isLoading = ref(false)
 
-// ================= 图片查看器核心逻辑 (升级版) =================
+// 计算总页数
+const totalPages = computed(() => {
+  return Math.ceil(totalCount.value / pageSize) || 1
+})
+
+// ✅ 核心修改：保证恰好显示5个数字按钮的逻辑
+const displayPageNums = computed(() => {
+  const total = totalPages.value
+  const current = pageNum.value
+  let pages = []
+
+  // 情况1：总页数 <= 5，显示全部，不加省略号
+  // 例子：1 2 3 4 5
+  if (total <= 5) {
+    for (let i = 1; i <= total; i++) {
+      pages.push(i)
+    }
+  } 
+  // 情况2：总页数 > 5，启用固定5数字逻辑
+  else {
+    // 我们需要中间显示3个数字，加上首尾共5个
+    // 默认中间范围：[current-1, current, current+1]
+    let start = current - 1
+    let end = current + 1
+
+    // 修正左边界：如果 current 靠近开头 (1, 2)，强制显示 2, 3, 4
+    if (start < 2) {
+      start = 2
+      end = 4
+    }
+
+    // 修正右边界：如果 current 靠近结尾 (total, total-1)，强制显示 total-3, total-2, total-1
+    if (end >= total) {
+      end = total - 1
+      start = total - 3
+    }
+
+    // --- 开始构建数组 ---
+
+    // 1. 永远添加第1页
+    pages.push(1)
+
+    // 2. 左侧省略号：如果中间块的起点不是2，说明和1之间有断层
+    if (start > 2) {
+      pages.push('...')
+    }
+
+    // 3. 添加中间的3个数字
+    for (let i = start; i <= end; i++) {
+      pages.push(i)
+    }
+
+    // 4. 右侧省略号：如果中间块的终点不是 total-1，说明和 total 之间有断层
+    if (end < total - 1) {
+      pages.push('...')
+    }
+
+    // 5. 永远添加最后一页
+    pages.push(total)
+  }
+  return pages
+})
+
+// ================= 图片查看器逻辑 (不变) =================
 const modalImageRef = ref(null)
-
-// 状态管理
-let state = { 
-  scale: 1, 
-  x: 0, 
-  y: 0, 
-  isDragging: false, 
-  isPinching: false, // 新增：是否正在捏合
-  startX: 0, 
-  startY: 0, 
-  lastX: 0, 
-  lastY: 0,
-  startDist: 0,      // 新增：捏合开始时的距离
-  startScale: 1      // 新增：捏合开始时的缩放比例
-}
-
+let state = { scale: 1, x: 0, y: 0, isDragging: false, isPinching: false, startX: 0, startY: 0, lastX: 0, lastY: 0, startDist: 0, startScale: 1 }
 let dims = { imgW: 0, imgH: 0, winW: 0, winH: 0 }
 
 const updateDims = () => {
@@ -118,14 +191,7 @@ onUnmounted(() => {
 const showBigImage = (url) => {
   if (!url) return
   bigImageUrl.value = url
-  // 重置状态
-  state = { 
-    scale: 1, x: 0, y: 0, 
-    isDragging: false, isPinching: false,
-    startX: 0, startY: 0, lastX: 0, lastY: 0,
-    startDist: 0, startScale: 1
-  }
-  
+  state = { scale: 1, x: 0, y: 0, isDragging: false, isPinching: false, startX: 0, startY: 0, lastX: 0, lastY: 0, startDist: 0, startScale: 1 }
   nextTick(() => {
     if (!modalImageRef.value) return
     dims.winW = window.innerWidth
@@ -136,9 +202,7 @@ const showBigImage = (url) => {
   })
 }
 
-const closeBigImage = () => {
-  bigImageUrl.value = ''
-}
+const closeBigImage = () => { bigImageUrl.value = '' }
 
 const updateTransform = (animation = true) => {
   if (!modalImageRef.value) return
@@ -146,19 +210,15 @@ const updateTransform = (animation = true) => {
   modalImageRef.value.style.transform = `translate3d(${state.x}px, ${state.y}px, 0) scale(${state.scale})`
 }
 
-// ----------------- PC端鼠标事件 -----------------
 const handleWheel = (e) => {
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   let newScale = state.scale + delta
   newScale = Math.max(0.5, Math.min(5, newScale))
-  
   if (Math.abs(newScale - state.scale) < 0.01) return
-
   const ratio = newScale / state.scale
   state.scale = newScale
   state.x *= ratio
   state.y *= ratio
-
   clampPosition()
   updateTransform(true)
 }
@@ -191,59 +251,40 @@ const handleMouseUp = () => {
   updateTransform(true)
 }
 
-// ----------------- 移动端触摸事件 (核心修改) -----------------
-
-// 计算两点距离
-const getDistance = (touches) => {
-  return Math.hypot(
-    touches[0].clientX - touches[1].clientX,
-    touches[0].clientY - touches[1].clientY
-  )
-}
+const getDistance = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
 
 const handleTouchStart = (e) => {
   if (e.touches.length === 2) {
-    // === 双指：开始缩放 ===
     state.isPinching = true
     state.isDragging = false 
     state.startDist = getDistance(e.touches)
     state.startScale = state.scale
   } else if (e.touches.length === 1) {
-    // === 单指：开始拖动 ===
-    state.isDragging = true // 注意：这里不设为false，允许单指拖动
+    state.isDragging = true
     state.isPinching = false
     state.startX = e.touches[0].clientX
     state.startY = e.touches[0].clientY
     state.lastX = state.x
     state.lastY = state.y
   }
-  
-  // 触摸开始时移除过渡，保证跟手
   if (modalImageRef.value) modalImageRef.value.style.transition = 'none'
 }
 
 const handleTouchMove = (e) => {
-  e.preventDefault() // 阻止默认滚动
-  
+  e.preventDefault()
   if (state.isPinching && e.touches.length === 2) {
-    // === 双指移动 ===
     const curDist = getDistance(e.touches)
     if (state.startDist > 0) {
       const scaleRatio = curDist / state.startDist
       let newScale = state.startScale * scaleRatio
-      // 限制缩放范围
       newScale = Math.max(0.5, Math.min(5, newScale))
-      
-      // 保持中心点缩放逻辑（简化版：按比例调整位移）
       const ratio = newScale / state.scale
       state.scale = newScale
       state.x *= ratio
       state.y *= ratio
-      
       updateTransform(false)
     }
   } else if (state.isDragging && e.touches.length === 1 && !state.isPinching) {
-    // === 单指移动 ===
     const deltaX = e.touches[0].clientX - state.startX
     const deltaY = e.touches[0].clientY - state.startY
     state.x = state.lastX + deltaX
@@ -253,14 +294,12 @@ const handleTouchMove = (e) => {
 }
 
 const handleTouchEnd = (e) => {
-  // 如果手指全部离开，重置所有状态并进行边界修正
   if (e.touches.length === 0) {
     state.isDragging = false
     state.isPinching = false
     clampPosition()
     updateTransform(true)
   } else if (e.touches.length === 1) {
-    // 如果从双指变成单指，重新初始化单指拖动状态，防止跳变
     state.isPinching = false
     state.isDragging = true
     state.startX = e.touches[0].clientX
@@ -270,45 +309,34 @@ const handleTouchEnd = (e) => {
   }
 }
 
-// 边界检查
 const clampPosition = () => {
   const curW = dims.imgW * state.scale
   const curH = dims.imgH * state.scale
-  
-  // 水平方向
-  if (curW <= dims.winW) {
-    state.x = 0
-  } else {
+  if (curW <= dims.winW) state.x = 0
+  else {
     const maxX = (curW - dims.winW) / 2
     state.x = Math.max(-maxX, Math.min(maxX, state.x))
   }
-  
-  // 垂直方向
-  if (curH <= dims.winH) {
-    state.y = 0
-  } else {
+  if (curH <= dims.winH) state.y = 0
+  else {
     const maxY = (curH - dims.winH) / 2
     state.y = Math.max(-maxY, Math.min(maxY, state.y))
   }
 }
 
-// ================= 原有业务逻辑 =================
+// ================= 数据获取与分页 =================
 const formatContent = (content) => {
   if (!content) return ''
   const escapeHtml = (str) => {
-    return str
-      .replace(/&/g, '&amp;')
-      .replace(/</g, '&lt;')
-      .replace(/>/g, '&gt;')
-      .replace(/"/g, '&quot;')
-      .replace(/'/g, '&#039;')
+    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
   }
   return escapeHtml(content).replace(/\n/g, '<br>')
 }
 
 const fetchUpdateList = async () => {
-  if (isLoading.value) return 
   isLoading.value = true
+  updateList.value = []
+  
   try {
     const url = `https://xiaolongya.cn/blog/development/listPage?pageNum=${pageNum.value}&pageSize=${pageSize}`
     const res = await fetch(url)
@@ -316,8 +344,20 @@ const fetchUpdateList = async () => {
     const result = await res.json()
 
     if (result.code === 200) {
-      const newData = result.data || []
-      const processedData = newData.map(item => ({
+      let rawList = []
+      let total = 0
+
+      if (Array.isArray(result.data)) {
+        rawList = result.data
+        total = rawList.length 
+      } else if (result.data) {
+        rawList = result.data.list || []
+        total = result.data.total || 0
+      }
+
+      totalCount.value = total
+
+      const processedData = rawList.map(item => ({
         time: item.createTime ? item.createTime.split(' ')[0] : '',
         content: item.content || '',
         images: Array.isArray(item.imgUrls) 
@@ -325,13 +365,7 @@ const fetchUpdateList = async () => {
           : (item.imgUrls ? item.imgUrls.split(',') : [])
       }))
 
-      updateList.value = [...updateList.value, ...processedData]
-
-      if (newData.length < pageSize) {
-        hasMore.value = false 
-      } else {
-        pageNum.value++ 
-      }
+      updateList.value = processedData
     } else {
       console.error(result.msg)
     }
@@ -342,13 +376,20 @@ const fetchUpdateList = async () => {
   }
 }
 
-const loadMore = () => {
+const changePage = (newPage) => {
+  if (newPage < 1 || newPage > totalPages.value || newPage === pageNum.value) return
+  
+  pageNum.value = newPage
   fetchUpdateList()
+
+  nextTick(() => {
+    const anchor = document.getElementById('dev-anchor')
+    if (anchor) anchor.scrollIntoView({ behavior: 'smooth' })
+  })
 }
 </script>
 
 <style scoped>
-/* 原有样式保持不变 */
 .development-page {
   width: 90%;
   max-width: 800px;
@@ -449,42 +490,74 @@ const loadMore = () => {
   transform: scale(1.05);
 }
 
-.load-more-wrap {
-  text-align: center;
-  margin-top: 40px;
-  margin-bottom: 40px;
-}
-
-.load-more-btn {
-  background-color: #00c0e2;
-  color: #fff;
-  border: none;
-  padding: 12px 40px;
-  font-size: 20px;
-  border-radius: 30px;
-  cursor: pointer;
-  box-shadow: 0 4px 6px rgba(0,0,0,0.1);
-  transition: all 0.3s ease;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  font-weight: bold;
-}
-
-.load-more-btn:hover:not(:disabled) {
-  background-color: #00a0be;
-  transform: translateY(-2px);
-  box-shadow: 0 6px 10px rgba(0,0,0,0.15);
-}
-
-.load-more-btn:disabled {
-  background-color: #9cddec;
-  cursor: not-allowed;
-  transform: none;
-}
-
 .no-more-text {
   color: #999;
   font-size: 18px;
   margin-top: 20px;
+  text-align: center;
+}
+
+/* ============ 分页器样式 ============ */
+.pagination-box {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  margin-top: 40px;
+  margin-bottom: 40px;
+  flex-wrap: wrap;
+}
+
+.page-btn {
+  min-width: 40px;
+  height: 40px;
+  padding: 0 10px;
+  border: 2px solid #b3d8ff;
+  background-color: #f0f7ff;
+  color: #2f5496;
+  border-radius: 12px;
+  font-size: 18px;
+  cursor: pointer;
+  transition: all 0.2s;
+  font-family: "Ma Shan Zheng", "楷体", serif;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+/* ✅ 常规按钮 Hover 效果 */
+.page-btn:hover:not(:disabled):not(.dots) {
+  background-color: #00c0e2;
+  color: #fff;
+  border-color: #00c0e2;
+  transform: translateY(-2px);
+  box-shadow: 0 2px 5px rgba(0, 192, 226, 0.3);
+}
+
+.page-btn.active {
+  background-color: #2f5496;
+  color: #fff;
+  border-color: #2f5496;
+  font-weight: bold;
+}
+
+.page-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  transform: none;
+}
+
+/* ✅ 省略号样式：和普通按钮一样，但不可点击 */
+.page-btn.dots {
+  cursor: default;
+  /* 继承了 page-btn 的 border 和 background，所以外观是小方格 */
+}
+.page-btn.dots:hover {
+  background-color: #f0f7ff;
+  color: #2f5496;
+  border-color: #b3d8ff;
+  transform: none;
+  box-shadow: none;
 }
 
 /* ============ 图片弹窗样式 ============ */
@@ -500,7 +573,7 @@ const loadMore = () => {
   align-items: center;
   z-index: 9999;
   overflow: hidden;
-  touch-action: none; /* 禁止默认触摸行为 */
+  touch-action: none;
 }
 
 .image-modal-img {
@@ -539,9 +612,12 @@ const loadMore = () => {
     width: 100px;
     height: 100px;
   }
-  .load-more-btn {
-    width: 80%;
-    padding: 12px 0;
+  .page-btn {
+    min-width: 32px;
+    height: 32px;
+    font-size: 14px;
+    border-radius: 8px;
+    padding: 0 6px;
   }
 }
 </style>
