@@ -263,6 +263,24 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
+import { useRouter } from 'vue-router' // 引入路由跳转
+
+const router = useRouter()
+
+onMounted(() => {
+  // 1. 挂载时立即检查
+  if (sessionStorage.getItem('isAdminLogin') !== 'true') {
+    router.push('/');
+  }
+  if (!isLogin) {
+    alert('检测到未登录，请通过正常途径进入！')
+    router.push('/') // 强制跳转回首页
+    return
+  }
+  
+  // 2. 原有的逻辑
+  getCategoryList() 
+})
 
 // 圆圈按钮列表
 const circleList = [

@@ -54,21 +54,20 @@ const router = createRouter({
   routes
 })
 
-// 全局前置路由守卫：拦截未登录访问/admin
+//全局路由守卫
 router.beforeEach((to, from, next) => {
-  // 判断目标路由是否需要登录
   if (to.meta.requiresAuth) {
-    const isLogin = localStorage.getItem('isAdminLogin')
-    if (isLogin) {
-      next() // 已登录，正常跳转
+    // 从 sessionStorage 读取
+    const isLogin = sessionStorage.getItem('isAdminLogin');
+    if (isLogin === 'true') {
+      next();
     } else {
-      // 未登录，跳回主页并提示
-      next('/')
-      alert('请先通过管理员登录弹窗进入后台！')
+      next('/');
+      alert('身份核验失效，请重新登录！');
     }
   } else {
-    next() // 不需要登录的路由，直接放行
+    next();
   }
-})
+});
 
 export default router
