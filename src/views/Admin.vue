@@ -1,8 +1,8 @@
 <template>
   <div class="admin-page">
     <section class="admin-header">
-      <h1 class="admin-title">龙岛的后台</h1>
-    </section>
+      <h1 class="admin-title unselectable">龙岛控制台</h1>
+      </section>
 
     <section class="admin-main-content">
       <div 
@@ -11,251 +11,319 @@
         :key="idx"  
         @click.prevent="handleCircleClick(item)"
       >
-        <div class="circle-bg">
-          <span class="circle-text">{{ item.content }}</span>
+        <div class="circle-bg unselectable hover-scale" :class="{ 'is-loading': globalLoading && currentLoadingItem === item.type }">
+          <span class="circle-text" v-if="!(globalLoading && currentLoadingItem === item.type)">{{ item.content }}</span>
+          <span class="loading-spinner" v-else>↻</span>
+          <div class="glass-reflection"></div>
         </div>
       </div>
     </section>
 
-    <div class="modal-mask" v-if="showGrowthMainModal" @click="closeGrowthMainModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">龙的成长记录</div>
-        <div class="growth-btn-group">
-          <button class="growth-sub-btn" @click="openAddCategoryModal">添加成长分类</button>
-          <button class="growth-sub-btn" @click="openSelectCategoryTypeModal">添加成长节点</button>
-          <button class="growth-sub-btn danger" @click="openDeleteCategoryModal">删除成长分类</button>
-          <button class="growth-sub-btn danger" @click="openDeleteNodeStep1Modal">删除成长节点</button>
-        </div>
-        <button class="modal-close-btn" @click="closeGrowthMainModal">关闭</button>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showAddCategoryModal" @click="confirmCloseAddCategoryModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">添加成长分类</div>
-        <div class="modal-form-item">
-          <label>分类名称：</label>
-          <input v-model="categoryForm.name" placeholder="请输入分类名称" class="modal-input" />
-        </div>
-        <div class="modal-form-item">
-          <label>类型选择：</label>
-          <select v-model="categoryForm.type" class="modal-select" required>
-            <option value="" disabled>请选择分类类型</option>
-            <option value="前端">前端</option>
-            <option value="后端">后端</option>
-            <option value="算法">算法</option>
-            <option value="其他">其他</option>
-          </select>
-        </div>
-        <div class="modal-btn-group">
-          <button class="modal-submit-btn" @click="submitCategory" :disabled="!categoryForm.name.trim() || !categoryForm.type || isSubmitting">
-            <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '提交中...' : '提交分类' }}
-          </button>
-          <button class="modal-close-btn" @click="confirmCloseAddCategoryModal" :disabled="isSubmitting">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showSelectTypeModal" @click="closeSelectTypeModal">
-      <div class="modal-container" @click.stop style="width: 400px;">
-        <div class="modal-title">选择分类类型</div>
-        <div class="modal-form-item">
-          <label>请选择板块类型：</label>
-          <select v-model="selectedCategoryType" class="modal-select" required>
-            <option value="" disabled>请选择板块类型</option>
-            <option value="前端">前端</option>
-            <option value="后端">后端</option>
-            <option value="算法">算法</option>
-            <option value="其他">其他</option>
-          </select>
-        </div>
-        <div class="modal-btn-group">
-          <button class="modal-submit-btn" @click="confirmCategoryType" :disabled="!selectedCategoryType || isSubmitting">下一步</button>
-          <button class="modal-close-btn" @click="closeSelectTypeModal" :disabled="isSubmitting">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showAddNodeModal" @click="confirmCloseAddNodeModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">添加成长节点（{{ selectedCategoryType }}板块）</div>
-        <div class="modal-form-item">
-          <label>所属具体分类：</label>
-          <select v-model="nodeForm.growthId" class="modal-select" required>
-            <option value="" disabled>请选择所属具体分类</option>
-            <option v-for="category in filteredCategoryList" :key="category.id" :value="category.id">{{ category.name }}</option>
-          </select>
-          <p class="upload-tip" v-if="filteredCategoryList.length === 0">该类型下暂无分类，请先添加对应分类</p>
-        </div>
-        <div class="modal-form-item">
-          <label>节点内容：</label>
-          <textarea ref="nodeContentInputRef" v-model="nodeForm.content" placeholder="请输入节点内容，图片嵌入会插入到光标位置" class="modal-textarea" rows="4"></textarea>
-          <div class="img-double-btn" style="display: flex; gap: 12px; margin-top: 10px;">
-            <button class="img-btn insert-btn" @click="triggerInsertImg">图片嵌入</button>
-            <button class="img-btn upload-btn" @click="triggerUploadImg">图片上传</button>
-            <input ref="insertImgFileInput" type="file" accept="image/jpeg,image/png,image/gif" style="display: none" @change="handleInsertImgUpload"/>
-            <input ref="uploadImgFileInput" type="file" accept="image/jpeg,image/png,image/gif" style="display: none" @change="handleUploadImgUpload"/>
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showGrowthMainModal" @click="closeGrowthMainModal">
+        <div class="modal-container gpu-layer" @click.stop>
+          <div class="modal-decoration"></div>
+          <div class="modal-header">
+            <h2 class="modal-title">🐲 龙的成长管理</h2>
           </div>
+          
+          <div v-if="isFetchingData" class="loading-container">
+            <span class="loading-spinner large">↻</span>
+            <p>数据加载中...</p>
+          </div>
+
+          <div v-else class="growth-btn-group">
+            <button class="action-btn hover-scale" @click="openAddCategoryModal">
+              <span class="btn-icon">📂</span> 添加分类
+            </button>
+            <button class="action-btn hover-scale" @click="openSelectCategoryTypeModal">
+              <span class="btn-icon">🌱</span> 添加节点
+            </button>
+            <button class="action-btn danger hover-scale" @click="openDeleteCategoryModal">
+              <span class="btn-icon">🗑️</span> 删除分类
+            </button>
+            <button class="action-btn danger hover-scale" @click="openDeleteNodeStep1Modal">
+              <span class="btn-icon">✂️</span> 删除节点
+            </button>
+          </div>
+          <button class="modal-close-text-btn" @click="closeGrowthMainModal">关闭菜单</button>
         </div>
-        <div class="modal-form-item" v-if="nodeForm.imgUrls.length > 0">
-          <label>底部图片预览：</label>
-          <div class="upload-preview">
-            <div v-for="(url, idx) in nodeForm.imgUrls" :key="idx" class="preview-item">
-              <img :src="url" class="preview-img" @error="handleNodeImgError(idx)" />
-              <button @click="removeNodeImage(idx)" class="remove-img-btn">×</button>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showAddCategoryModal" @click="confirmCloseAddCategoryModal">
+        <div class="modal-container gpu-layer" @click.stop>
+          <div class="modal-header">
+            <h2 class="modal-title">添加成长分类</h2>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <label>分类名称</label>
+              <input v-model="categoryForm.name" placeholder="例如：Vue3学习笔记" class="modal-input" />
+            </div>
+            <div class="modal-form-item">
+              <label>所属板块</label>
+              <select v-model="categoryForm.type" class="modal-select" required>
+                <option value="" disabled>请选择板块</option>
+                <option value="前端">前端</option>
+                <option value="后端">后端</option>
+                <option value="算法">算法</option>
+                <option value="其他">其他</option>
+              </select>
             </div>
           </div>
-        </div>
-        <div class="modal-btn-group">
-          <button class="modal-submit-btn" @click="submitNode" :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting || filteredCategoryList.length === 0">
-            <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '提交中...' : '提交节点' }}
-          </button>
-          <button class="modal-close-btn" @click="confirmCloseAddNodeModal" :disabled="isSubmitting">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showDeleteCategoryModal" @click="closeDeleteCategoryModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title danger-title">删除成长分类</div>
-        <div class="modal-form-item">
-          <label>请选择要删除的分类：</label>
-          <select v-model="deletegrowthId" class="modal-select" required>
-            <option value="" disabled>请选择分类</option>
-            <option v-for="category in categoryList" :key="category.id" :value="category.id">{{ category.name }}（类型：{{ category.type }}）</option>
-          </select>
-        </div>
-        <div class="modal-btn-group">
-          <button class="modal-submit-btn danger-btn" @click="submitDeleteCategory" :disabled="!deletegrowthId || isSubmitting">
-            <span v-if="isSubmitting" class="loading-icon">🔄</span>{{ isSubmitting ? '删除中...' : '确认删除' }}
-          </button>
-          <button class="modal-close-btn" @click="closeDeleteCategoryModal" :disabled="isSubmitting">取消</button>
-        </div>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showDeleteNodeStep1Modal" @click="closeDeleteNodeStep1Modal">
-      <div class="modal-container" @click.stop style="width: 400px;">
-        <div class="modal-title danger-title">删除成长节点（选择板块）</div>
-        <div class="modal-form-item">
-          <select v-model="deleteNodeSelectedType" class="modal-select"><option value="前端">前端</option><option value="后端">后端</option><option value="算法">算法</option><option value="其他">其他</option></select>
-        </div>
-        <div class="modal-btn-group"><button class="modal-submit-btn" @click="confirmDeleteNodeStep1" :disabled="!deleteNodeSelectedType">下一步</button><button class="modal-close-btn" @click="closeDeleteNodeStep1Modal">取消</button></div>
-      </div>
-    </div>
-    <div class="modal-mask" v-if="showDeleteNodeStep2Modal" @click="closeDeleteNodeStep2Modal">
-      <div class="modal-container" @click.stop style="width: 400px;">
-        <div class="modal-title danger-title">删除成长节点（选择分类）</div>
-        <div class="modal-form-item"><select v-model="deleteNodeSelectedgrowthId" class="modal-select"><option v-for="c in deleteNodeFilteredCategoryList" :key="c.id" :value="c.id">{{ c.name }}</option></select></div>
-        <div class="modal-btn-group"><button class="modal-submit-btn" @click="confirmDeleteNodeStep2" :disabled="!deleteNodeSelectedgrowthId">下一步</button><button class="modal-close-btn" @click="closeDeleteNodeStep2Modal">取消</button></div>
-      </div>
-    </div>
-    <div class="modal-mask" v-if="showDeleteNodeStep3Modal" @click="closeDeleteNodeStep3Modal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title danger-title">删除成长节点（选择节点）</div>
-        <div class="modal-form-item"><select v-model="deleteNodeId" class="modal-select"><option v-for="n in deleteNodeList" :key="n.id" :value="n.id">{{ n.content }}</option></select></div>
-        <div class="modal-btn-group"><button class="modal-submit-btn danger-btn" @click="submitDeleteNode" :disabled="!deleteNodeId">确认删除</button><button class="modal-close-btn" @click="closeDeleteNodeStep3Modal">取消</button></div>
-      </div>
-    </div>
-
-    <div class="modal-mask" v-if="showLogModal" @click="confirmCloseLogModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">更新龙岛日志</div>
-        <div class="modal-form-item">
-          <label>日志内容：</label>
-          <textarea v-model="logForm.content" placeholder="请输入日志内容（必填）" class="modal-textarea" rows="5"></textarea>
-        </div>
-        <div class="modal-form-item">
-          <label>上传图片：</label>
-          <input type="file" accept="image/jpeg,image/png,image/gif" @change="handleImageUpload" class="modal-file-input" />
-          <div class="upload-preview" v-if="logForm.imgUrls.length > 0">
-            <div v-for="(url, idx) in logForm.imgUrls" :key="idx" class="preview-item">
-              <img :src="url" class="preview-img" @error="handleImgError(idx)" /><button @click="removeImage(idx)" class="remove-img-btn">×</button>
-            </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn hover-scale" @click="submitCategory" :disabled="!categoryForm.name.trim() || !categoryForm.type || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ submitBtnText.category }}
+            </button>
+            <button class="modal-cancel-btn" @click="confirmCloseAddCategoryModal" :disabled="isSubmitting">关闭</button>
           </div>
         </div>
-        <div class="modal-btn-group">
-          <button class="modal-submit-btn" @click="submitLog" :disabled="!logForm.content.trim() || isSubmitting"><span v-if="isSubmitting" class="loading-icon">🔄</span>提交日志</button>
-          <button class="modal-close-btn" @click="confirmCloseLogModal" :disabled="isSubmitting">取消</button>
-        </div>
       </div>
-    </div>
+    </Transition>
 
-    <div class="modal-mask" v-if="showRecentMainModal" @click="closeRecentMainModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">最近事项管理</div>
-        <div class="growth-btn-group">
-          <button class="growth-sub-btn" @click="openRecentUploadModal">上传最近事项</button>
-          <button class="growth-sub-btn danger" @click="openRecentDeleteModal">删除最近事项</button>
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showSelectTypeModal" @click="closeSelectTypeModal">
+        <div class="modal-container gpu-layer" @click.stop style="width: 450px;">
+          <div class="modal-header">
+            <h2 class="modal-title">选择板块类型</h2>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <select v-model="selectedCategoryType" class="modal-select" required>
+                <option value="" disabled>请选择目标板块</option>
+                <option value="前端">前端</option>
+                <option value="后端">后端</option>
+                <option value="算法">算法</option>
+                <option value="其他">其他</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn hover-scale" @click="confirmCategoryType" :disabled="!selectedCategoryType || isSubmitting">下一步</button>
+            <button class="modal-cancel-btn" @click="closeSelectTypeModal" :disabled="isSubmitting">取消</button>
+          </div>
         </div>
-        <button class="modal-close-btn" @click="closeRecentMainModal">关闭</button>
       </div>
-    </div>
+    </Transition>
 
-    <div class="modal-mask" v-if="showRecentUploadModal" @click="confirmCloseRecentUploadModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title">上传最近事项</div>
-        <div class="modal-form-item">
-          <label>标题（必填）：</label>
-          <input 
-            v-model="recentForm.title" 
-            placeholder="请输入事项标题"
-            class="modal-input"
-          />
-        </div>
-        <div class="modal-form-item">
-          <label>内容（可选）：</label>
-          <textarea 
-            v-model="recentForm.content" 
-            placeholder="请输入详细内容，留空则代表保密"
-            class="modal-textarea"
-            rows="5"
-          ></textarea>
-        </div>
-        <div class="modal-btn-group">
-          <button 
-            class="modal-submit-btn" 
-            @click="submitRecent"
-            :disabled="!recentForm.title.trim() || isSubmitting"
-          >
-            <span v-if="isSubmitting" class="loading-icon">🔄</span>
-            {{ isSubmitting ? '上传中...' : '确认上传' }}
-          </button>
-          <button class="modal-close-btn" @click="confirmCloseRecentUploadModal" :disabled="isSubmitting">取消</button>
-        </div>
-      </div>
-    </div>
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showAddNodeModal" @click="confirmCloseAddNodeModal">
+        <div class="modal-container gpu-layer wide-modal" @click.stop>
+          <div class="modal-header">
+            <h2 class="modal-title">发布节点 <span class="sub-title">({{ selectedCategoryType }})</span></h2>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <label>所属分类</label>
+              <select v-model="nodeForm.growthId" class="modal-select" required>
+                <option value="" disabled>请选择具体分类</option>
+                <option v-for="category in filteredCategoryList" :key="category.id" :value="category.id">{{ category.name }}</option>
+              </select>
+              <p class="error-tip" v-if="filteredCategoryList.length === 0">⚠️ 该板块下暂无分类，请先添加分类</p>
+            </div>
+            <div class="modal-form-item">
+              <label>节点内容</label>
+              <textarea 
+                ref="nodeContentInputRef" 
+                v-model="nodeForm.content" 
+                placeholder="支持Markdown语法，点击下方按钮插入图片..." 
+                class="modal-textarea" 
+                rows="6"
+              ></textarea>
+              
+              <div class="tool-bar">
+                <button class="tool-btn hover-scale" @click="triggerInsertImg">
+                  🖼️ 嵌入图片
+                </button>
+                <button class="tool-btn hover-scale" @click="triggerUploadImg">
+                  📤 上传图片
+                </button>
+                <input ref="insertImgFileInput" type="file" accept="image/jpeg,image/png,image/gif" style="display: none" @change="handleInsertImgUpload"/>
+                <input ref="uploadImgFileInput" type="file" accept="image/jpeg,image/png,image/gif" style="display: none" @change="handleUploadImgUpload"/>
+              </div>
+            </div>
 
-    <div class="modal-mask" v-if="showRecentDeleteModal" @click="closeRecentDeleteModal">
-      <div class="modal-container" @click.stop>
-        <div class="modal-title danger-title">删除最近事项</div>
-        <div class="modal-form-item">
-          <label>请选择要删除的事项：</label>
-          <select v-model="deleteRecentId" class="modal-select" required>
-            <option value="" disabled>请选择事项</option>
-            <option 
-              v-for="item in recentList" 
-              :key="item.id" 
-              :value="item.id"
-            >
-              {{ item.title }} ({{ formatTime(item.createTime) }})
-            </option>
-          </select>
-          <p class="upload-tip" v-if="recentList.length === 0">暂无最近事项记录</p>
-        </div>
-        <div class="modal-btn-group">
-          <button 
-            class="modal-submit-btn danger-btn" 
-            @click="submitDeleteRecent"
-            :disabled="!deleteRecentId || isSubmitting"
-          >
-            <span v-if="isSubmitting" class="loading-icon">🔄</span>
-            {{ isSubmitting ? '删除中...' : '确认删除' }}
-          </button>
-          <button class="modal-close-btn" @click="closeRecentDeleteModal" :disabled="isSubmitting">取消</button>
+            <Transition name="fade">
+              <div class="modal-form-item" v-if="nodeForm.imgUrls.length > 0">
+                <label>图片预览管理</label>
+                <div class="upload-preview-scroller">
+                  <div v-for="(url, idx) in nodeForm.imgUrls" :key="idx" class="preview-card">
+                    <img :src="url" class="preview-img" @error="handleNodeImgError(idx)" />
+                    <div class="preview-mask">
+                      <button @click="removeNodeImage(idx)" class="remove-img-btn">🗑️</button>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </Transition>
+          </div>
+
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn hover-scale" @click="submitNode" :disabled="!nodeForm.growthId || !nodeForm.content.trim() || isSubmitting || filteredCategoryList.length === 0">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ submitBtnText.node }}
+            </button>
+            <button class="modal-cancel-btn" @click="confirmCloseAddNodeModal" :disabled="isSubmitting">关闭</button>
+          </div>
         </div>
       </div>
-    </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showDeleteCategoryModal" @click="closeDeleteCategoryModal">
+        <div class="modal-container gpu-layer danger-mode" @click.stop>
+          <div class="modal-header">
+            <h2 class="modal-title danger-text">删除成长分类</h2>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <label>选择删除对象</label>
+              <select v-model="deletegrowthId" class="modal-select danger-input" required>
+                <option value="" disabled>请慎重选择</option>
+                <option v-for="category in categoryList" :key="category.id" :value="category.id">{{ category.name }} - {{ category.type }}</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn danger-bg hover-scale" @click="submitDeleteCategory" :disabled="!deletegrowthId || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ isSubmitting ? '删除中...' : '确认销毁' }}
+            </button>
+            <button class="modal-cancel-btn" @click="closeDeleteCategoryModal" :disabled="isSubmitting">取消</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showDeleteNodeStep1Modal" @click="closeDeleteNodeStep1Modal">
+        <div class="modal-container gpu-layer danger-mode" @click.stop style="width: 450px;">
+          <div class="modal-header"><h2 class="modal-title danger-text">删节点 - 选板块</h2></div>
+          <div class="modal-body">
+             <select v-model="deleteNodeSelectedType" class="modal-select"><option value="前端">前端</option><option value="后端">后端</option><option value="算法">算法</option><option value="其他">其他</option></select>
+          </div>
+          <div class="modal-btn-group"><button class="modal-submit-btn danger-bg" @click="confirmDeleteNodeStep1" :disabled="!deleteNodeSelectedType">下一步</button><button class="modal-cancel-btn" @click="closeDeleteNodeStep1Modal">取消</button></div>
+        </div>
+      </div>
+    </Transition>
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showDeleteNodeStep2Modal" @click="closeDeleteNodeStep2Modal">
+        <div class="modal-container gpu-layer danger-mode" @click.stop style="width: 450px;">
+          <div class="modal-header"><h2 class="modal-title danger-text">删节点 - 选分类</h2></div>
+          <div class="modal-body"><select v-model="deleteNodeSelectedgrowthId" class="modal-select"><option v-for="c in deleteNodeFilteredCategoryList" :key="c.id" :value="c.id">{{ c.name }}</option></select></div>
+          <div class="modal-btn-group"><button class="modal-submit-btn danger-bg" @click="confirmDeleteNodeStep2" :disabled="!deleteNodeSelectedgrowthId">下一步</button><button class="modal-cancel-btn" @click="closeDeleteNodeStep2Modal">取消</button></div>
+        </div>
+      </div>
+    </Transition>
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showDeleteNodeStep3Modal" @click="closeDeleteNodeStep3Modal">
+        <div class="modal-container gpu-layer danger-mode" @click.stop>
+          <div class="modal-header"><h2 class="modal-title danger-text">删节点 - 选内容</h2></div>
+          <div class="modal-body"><select v-model="deleteNodeId" class="modal-select"><option v-for="n in deleteNodeList" :key="n.id" :value="n.id">{{ n.content }}</option></select></div>
+          <div class="modal-btn-group"><button class="modal-submit-btn danger-bg" @click="submitDeleteNode" :disabled="!deleteNodeId">确认删除</button><button class="modal-cancel-btn" @click="closeDeleteNodeStep3Modal">取消</button></div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showLogModal" @click="confirmCloseLogModal">
+        <div class="modal-container gpu-layer" @click.stop>
+          <div class="modal-header">
+            <h2 class="modal-title">📝 更新龙岛日志</h2>
+          </div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <label>日志内容</label>
+              <textarea v-model="logForm.content" placeholder="记录今天的点滴..." class="modal-textarea" rows="5"></textarea>
+            </div>
+            <div class="modal-form-item">
+              <label>配图上传</label>
+              <div class="file-upload-wrapper">
+                <input type="file" accept="image/jpeg,image/png,image/gif" @change="handleImageUpload" class="modal-file-input" />
+                <div class="upload-btn-fake">选择图片</div>
+              </div>
+              <div class="upload-preview-scroller" v-if="logForm.imgUrls.length > 0">
+                <div v-for="(url, idx) in logForm.imgUrls" :key="idx" class="preview-card">
+                  <img :src="url" class="preview-img" @error="handleImgError(idx)" />
+                  <div class="preview-mask"><button @click="removeImage(idx)" class="remove-img-btn">🗑️</button></div>
+                </div>
+              </div>
+            </div>
+          </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn hover-scale" @click="submitLog" :disabled="!logForm.content.trim() || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ submitBtnText.log }}
+            </button>
+            <button class="modal-cancel-btn" @click="confirmCloseLogModal" :disabled="isSubmitting">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showRecentMainModal" @click="closeRecentMainModal">
+        <div class="modal-container gpu-layer" @click.stop>
+          <div class="modal-header"><h2 class="modal-title">📅 最近事项</h2></div>
+          <div class="growth-btn-group">
+            <button class="action-btn hover-scale" @click="openRecentUploadModal">📤 上传新事项</button>
+            <button class="action-btn danger hover-scale" @click="openRecentDeleteModal">🗑️ 删除旧事项</button>
+          </div>
+          <button class="modal-close-text-btn" @click="closeRecentMainModal">关闭菜单</button>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showRecentUploadModal" @click="confirmCloseRecentUploadModal">
+        <div class="modal-container gpu-layer" @click.stop>
+          <div class="modal-header"><h2 class="modal-title">发布最近动态</h2></div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <label>标题</label>
+              <input v-model="recentForm.title" placeholder="简短的标题" class="modal-input" />
+            </div>
+            <div class="modal-form-item">
+              <label>详情</label>
+              <textarea v-model="recentForm.content" placeholder="详细描述（选填）" class="modal-textarea" rows="5"></textarea>
+            </div>
+          </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn hover-scale" @click="submitRecent" :disabled="!recentForm.title.trim() || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ submitBtnText.recent }}
+            </button>
+            <button class="modal-cancel-btn" @click="confirmCloseRecentUploadModal" :disabled="isSubmitting">关闭</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
+
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showRecentDeleteModal" @click="closeRecentDeleteModal">
+        <div class="modal-container gpu-layer danger-mode" @click.stop>
+          <div class="modal-header"><h2 class="modal-title danger-text">删除动态</h2></div>
+          <div class="modal-body">
+            <div class="modal-form-item">
+              <select v-model="deleteRecentId" class="modal-select danger-input" required>
+                <option value="" disabled>请选择删除项</option>
+                <option v-for="item in recentList" :key="item.id" :value="item.id">{{ item.title }} ({{ formatTime(item.createTime) }})</option>
+              </select>
+            </div>
+          </div>
+          <div class="modal-btn-group">
+            <button class="modal-submit-btn danger-bg" @click="submitDeleteRecent" :disabled="!deleteRecentId || isSubmitting">
+              <span v-if="isSubmitting" class="loading-spinner">↻</span>
+              {{ isSubmitting ? '删除中...' : '确认删除' }}
+            </button>
+            <button class="modal-cancel-btn" @click="closeRecentDeleteModal" :disabled="isSubmitting">取消</button>
+          </div>
+        </div>
+      </div>
+    </Transition>
 
   </div>
 </template>
@@ -268,14 +336,14 @@ const router = useRouter()
 
 // 圆圈按钮列表
 const circleList = [
-  { content: "更新龙岛日志", type: "log" },
-  { content: "龙的成长记录", type: "growth" },
-  { content: "更新最近事项", type: "recent" },
-  { content: "暂无", type: "none" },
-  { content: "暂无", type: "none" }
+  { content: "龙岛日志", type: "log" },
+  { content: "成长记录", type: "growth" },
+  { content: "最近事项", type: "recent" },
+  { content: "开发中", type: "none" },
+  { content: "开发中", type: "none" }
 ];
 
-// ============ 状态管理：弹窗显示控制 ============
+// ============ 状态管理 ============
 const showLogModal = ref(false)
 const showGrowthMainModal = ref(false)
 const showAddCategoryModal = ref(false)
@@ -288,7 +356,19 @@ const showDeleteNodeStep3Modal = ref(false)
 const showRecentMainModal = ref(false)
 const showRecentUploadModal = ref(false)
 const showRecentDeleteModal = ref(false)
+
 const isSubmitting = ref(false)
+const globalLoading = ref(false)
+const currentLoadingItem = ref('')
+const isFetchingData = ref(false)
+
+// 按钮文本状态
+const submitBtnText = ref({
+  category: '提交分类',
+  node: '发布节点',
+  log: '发布日志',
+  recent: '发布动态'
+})
 
 // ============ 数据存储 ============
 const categoryList = ref([])
@@ -305,7 +385,6 @@ const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
 const deletegrowthId = ref('')
 const deleteNodeId = ref('')
 
-// Ref绑定
 const nodeContentInputRef = ref(null)
 const insertImgFileInput = ref(null)
 const uploadImgFileInput = ref(null)
@@ -319,6 +398,26 @@ const deleteNodeFilteredCategoryList = computed(() => {
   if (!deleteNodeSelectedType.value) return []
   return categoryList.value.filter(category => category.type === deleteNodeSelectedType.value)
 })
+
+// ================= 工具函数 =================
+const showSuccessFeedback = (type) => {
+  const originalText = {
+    category: '提交分类',
+    node: '发布节点',
+    log: '发布日志',
+    recent: '发布动态'
+  }[type]
+  
+  submitBtnText.value[type] = '✨ 发布成功'
+  setTimeout(() => {
+    submitBtnText.value[type] = originalText
+  }, 2000)
+}
+
+const formatTime = (timeStr) => {
+  if(!timeStr) return ''
+  return timeStr.split('T')[0]
+}
 
 // ================= API 请求 =================
 const getCategoryList = async () => {
@@ -336,548 +435,516 @@ const getNodeListBygrowthId = async (growthId) => {
 const getRecentList = async () => {
   try {
     const res = await axios.get('https://xiaolongya.cn/blog/recent/list')
-    if (res.data.code === 200) {
-      recentList.value = res.data.data || []
-    } else {
-      throw new Error(res.data.msg || '获取最近事项列表失败')
-    }
-  } catch (err) {
-    alert(`获取失败：${err.message}`)
-  }
+    if (res.data.code === 200) recentList.value = res.data.data || []
+  } catch (err) { alert(`获取失败：${err.message}`) }
 }
 
 // ================= 交互逻辑 =================
 const handleCircleClick = async (item) => {
+  if (globalLoading.value) return;
+
   if (item.type === "log") {
-    await nextTick()
     showLogModal.value = true
-  } else if (item.type === "growth") {
-    await getCategoryList()
-    await nextTick()
+  } 
+  else if (item.type === "growth") {
+    globalLoading.value = true
+    currentLoadingItem.value = 'growth'
     showGrowthMainModal.value = true
-  } else if (item.type === "recent") {
-    await nextTick()
+    isFetchingData.value = true
+    
+    try {
+      await getCategoryList();
+    } finally {
+      isFetchingData.value = false
+      globalLoading.value = false
+      currentLoadingItem.value = ''
+    }
+  } 
+  else if (item.type === "recent") {
     showRecentMainModal.value = true
   }
 }
 
-// ============ [核心逻辑] 安全关闭弹窗函数 ============
-const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' } }
-const confirmCloseAddCategoryModal = () => {
-  const hasData = categoryForm.value.name.trim() || categoryForm.value.type
-  if (!hasData) { closeAddCategoryModal(); return }
-  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeAddCategoryModal()
+// 关闭函数
+const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' }; showGrowthMainModal.value = true }
+const confirmCloseAddCategoryModal = () => { 
+  if (categoryForm.value.name) { 
+    if(confirm('确认关闭？未提交的数据将丢失')) closeAddCategoryModal() 
+  } else closeAddCategoryModal() 
 }
+
+const closeGrowthMainModal = () => { showGrowthMainModal.value = false; isFetchingData.value = false }
+
 const closeLogModal = () => { showLogModal.value = false; logForm.value = { content: '', imgUrls: [] } }
-const confirmCloseLogModal = () => {
-  const hasData = logForm.value.content.trim() || logForm.value.imgUrls.length > 0
-  if (!hasData) { closeLogModal(); return }
-  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeLogModal()
-}
-const closeRecentUploadModal = () => { showRecentUploadModal.value = false }
-const confirmCloseRecentUploadModal = () => {
-  const hasData = recentForm.value.title.trim() || recentForm.value.content.trim()
-  if (!hasData) { closeRecentUploadModal(); return }
-  if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeRecentUploadModal()
-}
-const closeAddNodeModal = () => { showAddNodeModal.value = false; nodeForm.value = { growthId: '', content: '', imgUrls: [] }; selectedCategoryType.value = '' }
-const confirmCloseAddNodeModal = () => {
-  const hasData = nodeForm.value.growthId || nodeForm.value.content.trim() || nodeForm.value.imgUrls.length > 0
-  if (!hasData) { closeAddNodeModal(); return }
-  if (confirm('⚠️ 警告：数据将丢失，确认关闭？')) closeAddNodeModal()
+const confirmCloseLogModal = () => { if (logForm.value.content) { if(confirm('确认关闭？数据将丢失')) closeLogModal() } else closeLogModal() }
+
+const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = ''; showGrowthMainModal.value = true }
+const confirmCategoryType = async () => {
+  if (!selectedCategoryType.value) return
+  isSubmitting.value = true
+  await getCategoryList()
+  isSubmitting.value = false
+  showSelectTypeModal.value = false
+  showAddNodeModal.value = true
 }
 
-// ============ 普通关闭逻辑 (无数据丢失风险) ============
-const closeGrowthMainModal = () => { showGrowthMainModal.value = false }
-const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = '' }
-const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deletegrowthId.value = '' }
-const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = '' }
-const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedgrowthId.value = '' }
-const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; deleteNodeList.value = [] }
-const closeRecentMainModal = () => { showRecentMainModal.value = false }
-const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false }
-
-// 打开弹窗方法
-const openAddCategoryModal = async () => { showGrowthMainModal.value = false; await nextTick(); showAddCategoryModal.value = true }
-const openSelectCategoryTypeModal = async () => { showGrowthMainModal.value = false; await nextTick(); showSelectTypeModal.value = true; selectedCategoryType.value = '' }
-const openDeleteCategoryModal = async () => { showGrowthMainModal.value = false; await getCategoryList(); await nextTick(); showDeleteCategoryModal.value = true; deletegrowthId.value = '' }
-const openDeleteNodeStep1Modal = async () => { showGrowthMainModal.value = false; await nextTick(); showDeleteNodeStep1Modal.value = true; deleteNodeSelectedType.value = ''; deleteNodeSelectedgrowthId.value = ''; deleteNodeId.value = '' }
-const openRecentUploadModal = () => {
-  showRecentMainModal.value = false
-  recentForm.value = { title: '', content: '' }
-  showRecentUploadModal.value = true
+const closeAddNodeModal = () => { 
+  showAddNodeModal.value = false
+  nodeForm.value = { growthId: '', content: '', imgUrls: [] }
+  selectedCategoryType.value = '' 
+  showGrowthMainModal.value = true 
 }
-const openRecentDeleteModal = async () => {
-  showRecentMainModal.value = false
-  await getRecentList()
-  deleteRecentId.value = ''
-  showRecentDeleteModal.value = true
+const confirmCloseAddNodeModal = () => { 
+  if (nodeForm.value.content || nodeForm.value.imgUrls.length > 0) { 
+    if(confirm('确认关闭？数据将丢失')) closeAddNodeModal() 
+  } else closeAddNodeModal() 
 }
 
-// 确认步骤
-const confirmCategoryType = async () => { if (!selectedCategoryType.value) return; await getCategoryList(); await nextTick(); showSelectTypeModal.value = false; showAddNodeModal.value = true }
-const confirmDeleteNodeStep1 = async () => { if (!deleteNodeSelectedType.value) return; await getCategoryList(); await nextTick(); showDeleteNodeStep1Modal.value = false; showDeleteNodeStep2Modal.value = true }
-const confirmDeleteNodeStep2 = async () => { if (!deleteNodeSelectedgrowthId.value) return; await getNodeListBygrowthId(deleteNodeSelectedgrowthId.value); await nextTick(); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
+// 删除相关逻辑
+const openDeleteCategoryModal = () => { showGrowthMainModal.value = false; showDeleteCategoryModal.value = true }
+const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deletegrowthId.value = ''; showGrowthMainModal.value = true }
 
-// 图片上传通用方法
-const uploadImage = async (file) => {
-  const validTypes = ['image/jpeg', 'image/png', 'image/gif']
-  if (!validTypes.includes(file.type)) { alert('格式错误'); return null }
-  const formData = new FormData(); formData.append('file', file)
-  try {
-    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
-    return res.data.code === 200 ? res.data.data.trim() : null
-  } catch (err) { alert(`上传失败：${err.message}`); return null }
-}
+const openDeleteNodeStep1Modal = () => { showGrowthMainModal.value = false; showDeleteNodeStep1Modal.value = true }
+const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = ''; showGrowthMainModal.value = true }
+const confirmDeleteNodeStep1 = () => { showDeleteNodeStep1Modal.value = false; showDeleteNodeStep2Modal.value = true }
+const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false; deleteNodeSelectedgrowthId.value = ''; showDeleteNodeStep1Modal.value = true }
+const confirmDeleteNodeStep2 = async () => { await getNodeListBygrowthId(deleteNodeSelectedgrowthId.value); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
+const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; showDeleteNodeStep2Modal.value = true }
 
-// 图片按钮逻辑
-const triggerInsertImg = () => { insertImgFileInput.value.click() }
-const triggerUploadImg = () => { uploadImgFileInput.value.click() }
-const handleInsertImgUpload = async (e) => {
-  const file = e.target.files[0]; if (!file) return; const imgUrl = await uploadImage(file); if (!imgUrl) return
-  const input = nodeContentInputRef.value; if (!input) return
-  const start = input.selectionStart; const end = input.selectionEnd; const imgTag = `\n[IMAGE:${imgUrl}]\n`
-  nodeForm.value.content = nodeForm.value.content.substring(0, start) + imgTag + nodeForm.value.content.substring(end)
-  nextTick(() => { input.selectionStart = input.selectionEnd = start + imgTag.length })
-  e.target.value = ''
-}
-const handleUploadImgUpload = async (e) => { const file = e.target.files[0]; if (!file) return; const imgUrl = await uploadImage(file); if (imgUrl) nodeForm.value.imgUrls.push(imgUrl); e.target.value = '' }
-const handleImageUpload = async (e) => { const file = e.target.files[0]; if (!file) return; const imgUrl = await uploadImage(file); if (imgUrl) logForm.value.imgUrls.push(imgUrl); e.target.value = '' }
-const removeImage = (idx) => logForm.value.imgUrls.splice(idx, 1)
-const handleImgError = (idx) => { alert('图片无效'); removeImage(idx) }
-const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
-const handleNodeImgError = (idx) => { alert('图片无效'); removeNodeImage(idx) }
+// 最近事项相关
+const closeRecentMainModal = () => showRecentMainModal.value = false
+const openRecentUploadModal = () => { showRecentMainModal.value = false; showRecentUploadModal.value = true }
+const closeRecentUploadModal = () => { showRecentUploadModal.value = false; recentForm.value = { title: '', content: '' }; showRecentMainModal.value = true }
+const confirmCloseRecentUploadModal = () => { if(recentForm.value.title) { if(confirm('确认关闭？')) closeRecentUploadModal() } else closeRecentUploadModal() }
+const openRecentDeleteModal = async () => { await getRecentList(); showRecentMainModal.value = false; showRecentDeleteModal.value = true }
+const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false; deleteRecentId.value = ''; showRecentMainModal.value = true }
 
-// 提交逻辑
+// ================= 提交逻辑 =================
 const submitCategory = async () => {
-  const { name, type } = categoryForm.value; if (!name.trim() || !type) return; isSubmitting.value = true
+  if (!categoryForm.value.name.trim() || !categoryForm.value.type) return
+  isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', { name, type })
-    if (res.data.code === 200) { alert('成功'); closeAddCategoryModal(); getCategoryList() } else throw new Error(res.data.msg)
-  } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
+    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', categoryForm.value)
+    if (res.data.code === 200) {
+      showSuccessFeedback('category')
+      categoryForm.value = { name: '', type: '' }
+      getCategoryList()
+    } else { alert(res.data.msg || '添加失败') }
+  } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
+
 const submitNode = async () => {
-  const { growthId, content, imgUrls } = nodeForm.value; if (!growthId || !content.trim()) return; isSubmitting.value = true
+  if (!nodeForm.value.growthId || !nodeForm.value.content.trim()) return
+  isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/node/upload', { growthId, content: content.trim(), imgUrls })
-    if (res.data.code === 200) { alert('成功'); closeAddNodeModal() } else throw new Error(res.data.msg)
-  } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
+    const res = await axios.post('https://xiaolongya.cn/blog/node/upload', nodeForm.value)
+    if (res.data.code === 200) {
+      showSuccessFeedback('node')
+      nodeForm.value.content = ''
+      nodeForm.value.imgUrls = []
+    } else { alert(res.data.msg || '添加失败') }
+  } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
-const submitDeleteCategory = async () => {
-  if (!deletegrowthId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
-  try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deletegrowthId.value}`)
-    if (res.data.code === 200) { alert('成功'); closeDeleteCategoryModal(); getCategoryList() } else throw new Error(res.data.msg)
-  } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
-}
-const submitDeleteNode = async () => {
-  if (!deleteNodeId.value) return; if (!confirm('确认删除？')) return; isSubmitting.value = true
-  try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
-    if (res.data.code === 200) { alert('成功'); closeDeleteNodeStep3Modal(); getNodeListBygrowthId(deleteNodeSelectedgrowthId.value) } else throw new Error(res.data.msg)
-  } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
-}
+
 const submitLog = async () => {
-  const content = logForm.value.content.trim(); if (!content) return; isSubmitting.value = true
+  if (!logForm.value.content.trim()) return
+  isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/development/upload', { content, imgUrls: logForm.value.imgUrls })
-    if (res.data.code === 200) { alert('成功'); closeLogModal() } else throw new Error(res.data.msg)
-  } catch (err) { alert(err.message) } finally { isSubmitting.value = false }
+    const res = await axios.post('https://xiaolongya.cn/blog/development/upload', logForm.value)
+    if (res.data.code === 200) {
+      showSuccessFeedback('log')
+      logForm.value = { content: '', imgUrls: [] }
+    } else { alert(res.data.msg || '发布失败') }
+  } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
+
 const submitRecent = async () => {
   if (!recentForm.value.title.trim()) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/recent/upload', {
-      title: recentForm.value.title,
-      content: recentForm.value.content || ''
-    })
+    const res = await axios.post('https://xiaolongya.cn/blog/recent/upload', recentForm.value)
     if (res.data.code === 200) {
-      alert('上传成功！')
-      closeRecentUploadModal()
-    } else {
-      throw new Error(res.data.msg || '上传失败')
-    }
-  } catch (err) {
-    alert(`上传错误: ${err.message}`)
-  } finally {
-    isSubmitting.value = false
-  }
+      showSuccessFeedback('recent')
+      recentForm.value = { title: '', content: '' }
+    } else { alert(res.data.msg || '发布失败') }
+  } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
+
+const submitDeleteCategory = async () => {
+  if(!deletegrowthId.value) return
+  if(!confirm('确定要删除该分类吗？关联的节点也会被删除！')) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deletegrowthId.value}`)
+    if(res.data.code === 200) { alert('删除成功'); closeDeleteCategoryModal(); getCategoryList() } else alert(res.data.msg)
+  } catch(e) { alert('出错') } finally { isSubmitting.value = false }
+}
+
+const submitDeleteNode = async () => {
+  if(!deleteNodeId.value) return
+  if(!confirm('确定删除该节点？')) return
+  isSubmitting.value = true
+  try {
+    const res = await axios.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
+    if(res.data.code === 200) { alert('删除成功'); closeDeleteNodeStep3Modal() } else alert(res.data.msg)
+  } catch(e) { alert('出错') } finally { isSubmitting.value = false }
+}
+
 const submitDeleteRecent = async () => {
-  if (!deleteRecentId.value) return
-  if (!confirm('确认删除该事项吗？')) return
+  if(!deleteRecentId.value) return
+  if(!confirm('确定删除？')) return
   isSubmitting.value = true
   try {
     const res = await axios.post(`https://xiaolongya.cn/blog/recent/delete?id=${deleteRecentId.value}`)
+    if(res.data.code === 200) { alert('删除成功'); closeRecentDeleteModal() } else alert(res.data.msg)
+  } catch(e) { alert('出错') } finally { isSubmitting.value = false }
+}
+
+// ============ 图片处理 ============
+const handleImageUpload = async (e) => {
+  const file = e.target.files[0]; if (!file) return
+  const formData = new FormData(); formData.append('file', file)
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.data.code === 200) logForm.value.imgUrls.push(res.data.data)
+  } catch (e) { alert('上传失败') }
+}
+const triggerInsertImg = () => insertImgFileInput.value.click()
+const triggerUploadImg = () => uploadImgFileInput.value.click()
+const handleInsertImgUpload = async (e) => {
+  const file = e.target.files[0]; if (!file) return
+  const formData = new FormData(); formData.append('file', file)
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
     if (res.data.code === 200) {
-      alert('删除成功！')
-      closeRecentDeleteModal()
-    } else {
-      throw new Error(res.data.msg || '删除失败')
+      const imgMd = `\n[IMAGE:${res.data.data}]\n`
+      const textarea = nodeContentInputRef.value
+      const start = textarea.selectionStart; const end = textarea.selectionEnd
+      nodeForm.value.content = nodeForm.value.content.substring(0, start) + imgMd + nodeForm.value.content.substring(end)
     }
-  } catch (err) {
-    alert(`删除错误: ${err.message}`)
-  } finally {
-    isSubmitting.value = false
-  }
+  } catch (e) { alert('图片上传失败') }
 }
-
-// 时间格式化
-const formatTime = (timeStr) => {
-  if (!timeStr) return '未知时间'
-  const date = new Date(timeStr)
-  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
+const handleUploadImgUpload = async (e) => {
+  const file = e.target.files[0]; if (!file) return
+  const formData = new FormData(); formData.append('file', file)
+  try {
+    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.data.code === 200) nodeForm.value.imgUrls.push(res.data.data)
+  } catch (e) { alert('上传失败') }
 }
+const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
+const removeImage = (idx) => logForm.value.imgUrls.splice(idx, 1)
+const handleImgError = (idx) => logForm.value.imgUrls.splice(idx, 1)
+const handleNodeImgError = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 
-// 合并后的唯一onMounted（仅执行必要的初始化）
-onMounted(() => {
-  getCategoryList() // 仅加载分类数据，登录校验由路由守卫完成
-})
+// ============ 辅助交互 ============
+const openAddCategoryModal = () => { showGrowthMainModal.value = false; showAddCategoryModal.value = true }
+const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; showSelectTypeModal.value = true }
 </script>
 
 <style scoped>
-/* 样式保持原样，无需修改 */
+.unselectable { user-select: none; -webkit-user-select: none; cursor: default; }
+.hover-scale { transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
+.hover-scale:active { transform: scale(0.96); }
+.gpu-layer { 
+  will-change: transform, opacity; 
+  transform: translateZ(0); 
+  backface-visibility: hidden;
+}
+
+/* 页面布局 */
 .admin-page {
   width: 90%;
   max-width: 1200px;
+  min-height: 80vh;
   margin: 0 auto;
-  padding: 40px 0;
-  font-family: "Microsoft YaHei", "楷体", sans-serif;
+  padding-top: 40px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .admin-header {
   text-align: center;
-  margin-bottom: 60px;
+  margin-bottom: 50px;
 }
+
+/* 放大标题 */
 .admin-title {
-  font-size: 100px;
-  font-weight: 900;
-  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  font-family: "Ma Shan Zheng", cursive;
+  font-size: 90px; /* 放大 */
+  background: linear-gradient(135deg, #2f5496, #00c0e2);
   -webkit-background-clip: text;
   background-clip: text;
   color: transparent;
-  font-family: "Ma Shan Zheng", "楷体", "STKaiti", cursive;
-  letter-spacing: 10px;
-  margin: 0;
+  margin-bottom: 20px;
+  filter: drop-shadow(0 2px 2px rgba(0,0,0,0.1));
 }
 
+:global(.global-wrapper.dark-mode) .admin-title {
+  background: linear-gradient(135deg, #60a5fa, #2dd4bf);
+  -webkit-background-clip: text;
+}
+
+/* 宫格菜单 */
 .admin-main-content {
-  width: 100%;
-  background-color: #b3d8ff;
-  border-radius: 80px;
   display: flex;
-  justify-content: space-around;
-  align-items: center;
-  padding: 60px 20px;
-  box-sizing: border-box;
+  justify-content: center;
+  gap: 50px; /* 拉大间距 */
   flex-wrap: wrap;
-  gap: 40px;
-  margin-bottom: 40px;
-  box-shadow: 0 10px 30px rgba(47, 84, 150, 0.1);
 }
 
+/* 放大圆圈 */
 .circle-item {
-  width: 180px;
-  height: 180px;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  cursor: pointer;
-  user-select: none;
-}
-.circle-bg {
-  width: 180px;
-  height: 180px;
-  border-radius: 50%;
-  background-color: #ffffff;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  box-shadow: 0 5px 14px rgba(0, 0, 0, 0.15);
-  transition: all 0.15s ease;
-  border: 2px solid #2f5496;
-  padding: 10px;
-  box-sizing: border-box;
-}
-.circle-bg:hover {
-  transform: scale(1.03);
-  box-shadow: 0 8px 20px rgba(47, 84, 150, 0.2);
-  background-color: #f8fbff;
-  border-color: #3a66b8;
-}
-.circle-bg:active {
-  transform: scale(0.98);
-  box-shadow: 0 2px 8px rgba(47, 84, 150, 0.2);
-}
-.circle-text {
-  font-size: 25px;
-  font-weight: 700;
-  color: #2f5496;
-  font-family: "楷体", "KaiTi", "STKaiti", serif;
-  text-align: center;
-  white-space: pre-line;
-  line-height: 1.5;
-  transition: color 0.15s ease;
-}
-.circle-bg:hover .circle-text {
-  color: #3a66b8;
+  width: 180px; /* 放大 */
+  height: 180px; /* 放大 */
 }
 
-/* 弹窗遮罩 */
+.circle-bg {
+  width: 100%;
+  height: 100%;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, 0.6);
+  backdrop-filter: blur(10px);
+  box-shadow: 0 8px 20px rgba(31, 38, 135, 0.1);
+  border: 1px solid rgba(255, 255, 255, 0.4);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  position: relative;
+  overflow: hidden;
+  transition: all 0.3s ease;
+}
+
+.circle-bg.is-loading {
+  background: rgba(255, 255, 255, 0.8);
+  cursor: wait;
+}
+
+:global(.global-wrapper.dark-mode) .circle-bg {
+  background: rgba(30, 41, 59, 0.6);
+  border-color: rgba(255, 255, 255, 0.1);
+}
+
+.circle-bg:hover {
+  box-shadow: 0 10px 25px rgba(47, 84, 150, 0.2);
+  transform: translateY(-5px);
+}
+
+/* 放大圆圈文字 */
+.circle-text {
+  font-weight: bold;
+  color: #2f5496;
+  font-size: 28px; /* 放大 */
+  z-index: 2;
+}
+:global(.global-wrapper.dark-mode) .circle-text { color: #bfdbfe; }
+
+/* 玻璃光泽 */
+.glass-reflection {
+  position: absolute;
+  top: 0; left: -50%;
+  width: 200%; height: 100%;
+  background: linear-gradient(to right, transparent, rgba(255,255,255,0.3), transparent);
+  transform: skewX(-25deg) translateX(-150%);
+  transition: transform 0.5s;
+  pointer-events: none;
+}
+.circle-bg:hover .glass-reflection { transform: skewX(-25deg) translateX(150%); }
+
+/* ================= 弹窗样式优化 ================= */
 .modal-mask {
   position: fixed;
-  top: 0;
-  left: 0;
-  width: 100vw;
-  height: 100vh;
-  background-color: rgba(0, 0, 0, 0.5);
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background-color: rgba(0, 0, 0, 0.6); 
+  z-index: 1000;
   display: flex;
   justify-content: center;
   align-items: center;
-  z-index: 9999;
-  animation: modalFadeIn 0.1s ease forwards;
-  opacity: 0;
 }
 
 .modal-container {
-  width: 500px;
-  max-width: 90vw;
-  background-color: #ffffff;
-  border-radius: 16px;
-  padding: 30px;
-  box-sizing: border-box;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.2);
-  font-family: "Microsoft YaHei", "楷体", serif;
-  animation: modalFadeIn 0.12s ease forwards;
-  opacity: 0;
-  overflow: hidden;
+  background: rgba(255, 255, 255, 0.95);
+  backdrop-filter: blur(10px);
+  padding: 40px; /* 增加内边距 */
+  border-radius: 24px;
+  width: 550px; /* 稍微加宽 */
+  max-width: 90%;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.6);
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  gap: 25px;
 }
 
-@keyframes modalFadeIn {
-  from { opacity: 0; }
-  to { opacity: 1; }
+.wide-modal { width: 750px; }
+
+:global(.global-wrapper.dark-mode) .modal-container {
+  background: rgba(30, 41, 59, 0.95);
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+.modal-header {
+  border-bottom: 2px solid rgba(47, 84, 150, 0.1);
+  padding-bottom: 15px;
+  margin-bottom: 5px;
 }
 
 .modal-title {
-  font-size: 24px;
+  margin: 0;
+  font-size: 28px; /* 放大 */
   color: #2f5496;
-  text-align: center;
-  margin-bottom: 25px;
-  font-weight: 700;
-  padding-bottom: 15px;
-  border-bottom: 1px solid #e8e8e8;
+  font-weight: 600;
 }
-.danger-title {
-  color: #ff4d4f;
-  border-bottom-color: #ffcccc;
-}
+:global(.global-wrapper.dark-mode) .modal-title { color: #60a5fa; }
 
+.sub-title { font-size: 0.7em; color: #64748b; margin-left: 10px; }
+
+/* 表单元素 */
 .modal-form-item {
-  margin-bottom: 25px;
-}
-.modal-form-item label {
-  display: block;
-  font-size: 18px;
-  color: #333;
-  margin-bottom: 8px;
-  font-weight: 500;
-}
-.modal-input, .modal-select, .modal-textarea {
-  width: 100%;
-  padding: 12px 15px;
-  border: 1px solid #b3d8ff;
-  border-radius: 8px;
-  font-size: 16px;
-  outline: none;
-  box-sizing: border-box;
-  transition: border-color 0.1s ease;
-  background-color: #fff;
-}
-.modal-select {
-  cursor: pointer;
-}
-.modal-textarea {
-  font-family: "Microsoft YaHei", "楷体", serif;
-  resize: vertical;
-}
-.modal-input:focus, .modal-select:focus, .modal-textarea:focus {
-  border-color: #2f5496;
-}
-
-.modal-file-input {
-  font-size: 16px;
-  font-family: "Microsoft YaHei", "楷体", serif;
-  padding: 8px 0;
-  color: #666;
-}
-.upload-tip {
-  font-size: 14px;
-  color: #999;
-  margin-top: 8px;
-  margin-bottom: 0;
-}
-
-.upload-preview {
-  margin-top: 10px;
-  display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
-}
-.preview-item {
-  position: relative;
-  width: 80px;
-  height: 80px;
-  border-radius: 4px;
-  overflow: hidden;
-  border: 1px solid #e8e8e8;
-}
-.preview-img {
-  width: 100%;
-  height: 100%;
-  object-fit: cover;
-  border-radius: 4px;
-}
-.remove-img-btn {
-  position: absolute;
-  top: -5px;
-  right: -5px;
-  width: 20px;
-  height: 20px;
-  border: none;
-  border-radius: 50%;
-  background-color: #ff4d4f;
-  color: #fff;
-  font-size: 14px;
-  cursor: pointer;
-  display: flex;
-  justify-content: center;
-  align-items: center;
-  transition: background-color 0.1s ease;
-}
-.remove-img-btn:hover {
-  background-color: #ff7875;
-}
-
-.modal-btn-group {
-  display: flex;
-  justify-content: center;
-  gap: 20px;
-  margin-top: 15px;
-}
-.growth-btn-group {
   display: flex;
   flex-direction: column;
-  gap: 15px;
-  margin-bottom: 20px;
+  gap: 10px;
 }
-.growth-sub-btn, .modal-submit-btn {
-  padding: 12px 0;
-  background-color: #2f5496;
-  color: #fff;
-  border: none;
-  border-radius: 8px;
-  font-size: 18px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-  user-select: none;
-  box-shadow: 0 2px 6px rgba(47, 84, 150, 0.2);
+
+.modal-form-item label {
+  font-size: 16px; /* 放大 */
+  font-weight: 600;
+  color: #475569;
 }
-.modal-submit-btn {
-  padding: 10px 30px;
+:global(.global-wrapper.dark-mode) .modal-form-item label { color: #94a3b8; }
+
+.modal-input, .modal-select, .modal-textarea {
+  padding: 14px; /* 放大 */
+  border: 2px solid rgba(47, 84, 150, 0.15);
+  border-radius: 12px;
+  background: #f8fafc;
+  font-size: 16px; /* 放大 */
+  transition: border-color 0.2s;
+  color: #334155;
+}
+.modal-textarea { resize: vertical; min-height: 120px; font-family: inherit; }
+
+.modal-input:focus, .modal-select:focus, .modal-textarea:focus {
+  outline: none;
+  border-color: #00c0e2;
+  background: #fff;
+}
+
+:global(.global-wrapper.dark-mode) .modal-input,
+:global(.global-wrapper.dark-mode) .modal-select,
+:global(.global-wrapper.dark-mode) .modal-textarea {
+  background: #1e293b;
+  border-color: rgba(255, 255, 255, 0.1);
+  color: #e2e8f0;
+}
+
+/* 按钮组 */
+.modal-btn-group, .growth-btn-group {
   display: flex;
-  align-items: center;
-  gap: 8px;
-}
-.growth-sub-btn.danger, .modal-submit-btn.danger-btn {
-  background-color: #ff4d4f;
-  box-shadow: 0 2px 6px rgba(255, 77, 79, 0.2);
-}
-.growth-sub-btn:hover, .modal-submit-btn:not(:disabled):hover {
-  background-color: #3a66b8;
-}
-.growth-sub-btn.danger:hover, .modal-submit-btn.danger-btn:not(:disabled):hover {
-  background-color: #ff7875;
-}
-.growth-sub-btn:active, .modal-submit-btn:not(:disabled):active {
-  transform: translateY(1px);
-  box-shadow: none;
-}
-.growth-sub-btn:disabled, .modal-submit-btn:disabled {
-  background-color: #b3d8ff;
-  cursor: not-allowed;
-  box-shadow: none;
-  transform: none;
-}
-.modal-close-btn {
-  padding: 10px 30px;
-  background-color: #f5f5f5;
-  color: #333;
-  border: 1px solid #ddd;
-  border-radius: 8px;
-  font-size: 18px;
-  cursor: pointer;
-  transition: all 0.1s ease;
-  user-select: none;
-}
-.modal-close-btn:hover {
-  background-color: #f0f0f0;
-  border-color: #ccc;
-}
-.modal-close-btn:active {
-  transform: translateY(1px);
-}
-.modal-close-btn:disabled {
-  opacity: 0.6;
-  cursor: not-allowed;
-  transform: none;
+  gap: 15px;
+  justify-content: flex-end;
+  margin-top: 15px;
 }
 
-.img-double-btn {
-  margin-top: 12px;
-}
-.img-btn {
-  padding: 8px 20px;
+.growth-btn-group { flex-wrap: wrap; justify-content: center; gap: 20px; }
+
+.modal-submit-btn {
+  padding: 12px 30px; /* 放大 */
+  border-radius: 12px;
   border: none;
-  border-radius: 6px;
-  font-size: 16px;
+  background: linear-gradient(135deg, #2f5496, #00c0e2);
+  color: white;
+  font-weight: 600;
+  font-size: 18px; /* 放大 */
   cursor: pointer;
-  transition: all 0.1s ease;
-  color: #fff;
-}
-.insert-btn {
-  background-color: #2f5496;
-}
-.upload-btn {
-  background-color: #00c0e2;
-}
-.img-btn:hover {
-  opacity: 0.9;
-  transform: translateY(-1px);
-}
-.img-btn:active {
-  transform: translateY(1px);
+  box-shadow: 0 4px 6px rgba(0, 192, 226, 0.2); 
 }
 
-.loading-icon {
-  animation: rotate 1.5s linear infinite;
+.modal-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
+
+.modal-cancel-btn {
+  padding: 12px 25px; /* 放大 */
+  border-radius: 12px;
+  border: 2px solid #cbd5e1;
+  background: transparent;
+  color: #64748b;
+  font-weight: 600;
+  cursor: pointer;
+  font-size: 16px;
 }
-@keyframes rotate {
-  from { transform: rotate(0deg); }
-  to { transform: rotate(360deg); }
+.modal-cancel-btn:hover { border-color: #94a3b8; color: #475569; }
+
+/* 菜单式弹窗的大按钮 */
+.action-btn {
+  width: 180px; /* 放大 */
+  height: 130px; /* 放大 */
+  padding: 10px;
+  border-radius: 16px;
+  border: none;
+  background: linear-gradient(135deg, #2f5496, #00c0e2);
+  color: white;
+  font-weight: 600;
+  font-size: 20px; /* 放大 */
+  cursor: pointer;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 12px;
+  box-shadow: 0 4px 10px rgba(0, 192, 226, 0.3);
+}
+.action-btn .btn-icon { font-size: 40px; /* 放大 */ }
+
+.danger-mode .modal-title { color: #ef4444; }
+.danger-bg, .action-btn.danger { background: linear-gradient(135deg, #ef4444, #f87171); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
+.danger-input:focus { border-color: #ef4444; }
+
+.modal-close-text-btn {
+  margin-top: 15px;
+  background: none; border: none;
+  color: #94a3b8;
+  cursor: pointer;
+  text-decoration: underline;
+  font-size: 16px;
 }
 
-@media (max-width: 768px) {
-  .admin-title { font-size: 36px; }
-  .admin-main-content { border-radius: 40px; padding: 30px 10px; gap: 20px; }
-  .circle-item { width: 120px; height: 120px; }
-  .circle-bg { width: 120px; height: 120px; }
-  .circle-text { font-size: 18px; }
-  .modal-container { padding: 20px; }
-  .modal-title { font-size: 20px; margin-bottom: 20px; }
-  .modal-btn-group { gap: 15px; }
-  .modal-submit-btn, .modal-close-btn { padding: 8px 20px; font-size: 16px; }
-  .growth-sub-btn { font-size: 16px; }
-  .img-btn { padding: 6px 15px; font-size: 14px; }
+/* Loading */
+.loading-container {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 180px;
+  color: #64748b;
+  font-size: 18px;
 }
+.loading-spinner {
+  display: inline-block;
+  animation: rotate 1s linear infinite;
+  font-family: monospace;
+}
+.loading-spinner.large { font-size: 40px; margin-bottom: 15px; color: #00c0e2; }
+@keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
+
+/* 图片预览等 */
+.tool-bar { display: flex; gap: 10px; margin-top: 10px; }
+.tool-btn { padding: 8px 16px; background: #eff6ff; color: #2f5496; border-radius: 8px; border: none; font-size: 14px; cursor: pointer; }
+.upload-preview-scroller { display: flex; gap: 10px; overflow-x: auto; padding: 5px; background: rgba(0,0,0,0.03); border-radius: 8px; }
+.preview-card { position: relative; width: 90px; height: 90px; flex-shrink: 0; border-radius: 8px; overflow: hidden; }
+.preview-img { width: 100%; height: 100%; object-fit: cover; }
+.preview-mask { position: absolute; top:0; left:0; width:100%; height:100%; background: rgba(0,0,0,0.4); display: flex; justify-content: center; align-items: center; opacity: 0; transition: opacity 0.2s; }
+.preview-card:hover .preview-mask { opacity: 1; }
+.remove-img-btn { background: none; border: none; font-size: 20px; cursor: pointer; }
+
+/* Transitions */
+.modal-fast-enter-active, .modal-fast-leave-active { transition: opacity 0.25s ease, transform 0.25s ease; }
+.modal-fast-enter-from, .modal-fast-leave-to { opacity: 0; transform: scale(0.98); }
+
+.fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
+.fade-enter-from, .fade-leave-to { opacity: 0; }
 </style>
