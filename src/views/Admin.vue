@@ -263,24 +263,8 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import axios from 'axios'
-import { useRouter } from 'vue-router' // 引入路由跳转
-
+import { useRouter } from 'vue-router'
 const router = useRouter()
-
-onMounted(() => {
-  // 1. 挂载时立即检查
-  if (sessionStorage.getItem('isAdminLogin') !== 'true') {
-    router.push('/');
-  }
-  if (!isLogin) {
-    alert('检测到未登录，请通过正常途径进入！')
-    router.push('/') // 强制跳转回首页
-    return
-  }
-  
-  // 2. 原有的逻辑
-  getCategoryList() 
-})
 
 // 圆圈按钮列表
 const circleList = [
@@ -304,7 +288,6 @@ const showDeleteNodeStep3Modal = ref(false)
 const showRecentMainModal = ref(false)
 const showRecentUploadModal = ref(false)
 const showRecentDeleteModal = ref(false)
-
 const isSubmitting = ref(false)
 
 // ============ 数据存储 ============
@@ -313,11 +296,9 @@ const selectedCategoryType = ref('')
 const deleteNodeSelectedType = ref('')
 const deleteNodeSelectedgrowthId = ref('')
 const deleteNodeList = ref([])
-
 const recentList = ref([])
 const recentForm = ref({ title: '', content: '' })
 const deleteRecentId = ref('')
-
 const logForm = ref({ content: '', imgUrls: [] })
 const categoryForm = ref({ name: '', type: '' })
 const nodeForm = ref({ growthId: '', content: '', imgUrls: [] })
@@ -339,7 +320,7 @@ const deleteNodeFilteredCategoryList = computed(() => {
   return categoryList.value.filter(category => category.type === deleteNodeSelectedType.value)
 })
 
-// ================= API 请求 (保持不变) =================
+// ================= API 请求 =================
 const getCategoryList = async () => {
   try {
     const res = await axios.get('https://xiaolongya.cn/blog/growth/list')
@@ -381,32 +362,24 @@ const handleCircleClick = async (item) => {
 }
 
 // ============ [核心逻辑] 安全关闭弹窗函数 ============
-
-// 1. 安全关闭添加分类弹窗
 const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' } }
 const confirmCloseAddCategoryModal = () => {
   const hasData = categoryForm.value.name.trim() || categoryForm.value.type
   if (!hasData) { closeAddCategoryModal(); return }
   if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeAddCategoryModal()
 }
-
-// 2. 安全关闭龙岛日志弹窗
 const closeLogModal = () => { showLogModal.value = false; logForm.value = { content: '', imgUrls: [] } }
 const confirmCloseLogModal = () => {
   const hasData = logForm.value.content.trim() || logForm.value.imgUrls.length > 0
   if (!hasData) { closeLogModal(); return }
   if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeLogModal()
 }
-
-// 3. 安全关闭最近事项上传弹窗
 const closeRecentUploadModal = () => { showRecentUploadModal.value = false }
 const confirmCloseRecentUploadModal = () => {
   const hasData = recentForm.value.title.trim() || recentForm.value.content.trim()
   if (!hasData) { closeRecentUploadModal(); return }
   if (confirm('⚠️ 警告：已输入内容，关闭将丢失数据，确认关闭？')) closeRecentUploadModal()
 }
-
-// 4. 安全关闭添加成长节点弹窗 (你原有的逻辑)
 const closeAddNodeModal = () => { showAddNodeModal.value = false; nodeForm.value = { growthId: '', content: '', imgUrls: [] }; selectedCategoryType.value = '' }
 const confirmCloseAddNodeModal = () => {
   const hasData = nodeForm.value.growthId || nodeForm.value.content.trim() || nodeForm.value.imgUrls.length > 0
@@ -429,7 +402,6 @@ const openAddCategoryModal = async () => { showGrowthMainModal.value = false; aw
 const openSelectCategoryTypeModal = async () => { showGrowthMainModal.value = false; await nextTick(); showSelectTypeModal.value = true; selectedCategoryType.value = '' }
 const openDeleteCategoryModal = async () => { showGrowthMainModal.value = false; await getCategoryList(); await nextTick(); showDeleteCategoryModal.value = true; deletegrowthId.value = '' }
 const openDeleteNodeStep1Modal = async () => { showGrowthMainModal.value = false; await nextTick(); showDeleteNodeStep1Modal.value = true; deleteNodeSelectedType.value = ''; deleteNodeSelectedgrowthId.value = ''; deleteNodeId.value = '' }
-
 const openRecentUploadModal = () => {
   showRecentMainModal.value = false
   recentForm.value = { title: '', content: '' }
@@ -551,13 +523,17 @@ const submitDeleteRecent = async () => {
   }
 }
 
+// 时间格式化
 const formatTime = (timeStr) => {
   if (!timeStr) return '未知时间'
   const date = new Date(timeStr)
   return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`
 }
 
-onMounted(() => { getCategoryList() })
+// 合并后的唯一onMounted（仅执行必要的初始化）
+onMounted(() => {
+  getCategoryList() // 仅加载分类数据，登录校验由路由守卫完成
+})
 </script>
 
 <style scoped>
