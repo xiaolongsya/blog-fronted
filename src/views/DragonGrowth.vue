@@ -82,6 +82,8 @@
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
 import { useRouter } from 'vue-router'
+// 1. 引入你配置好的限流请求工具
+import request from '@/utils/request'
 
 const router = useRouter()
 
@@ -94,38 +96,41 @@ const modalVisible = ref(false)
 const currentMainCategory = ref('') // 记录当前点击的四大分类
 
 /**
- * 获取分类列表数据
+ * 获取分类列表数据 (已适配 request.js)
  */
 const fetchCategories = async () => {
+  loading.value = true
   try {
-    const res = await fetch('https://xiaolongya.cn/blog/growth/list')
-    if (!res.ok) throw new Error('网络请求失败，HTTP 状态码：' + res.status)
+    // 使用 request 工具，路径由 baseURL 自动补全
+    const res = await request.get('/growth/list')
     
-    const result = await res.json()
-    if (result.code !== 200) {
-      throw new Error('接口返回失败：' + (result.msg || '未知错误'))
+    // 适配拦截器剥离后的数据结构 (res 直接就是后端返回的 {code, data, msg})
+    if (res.code === 200) {
+      const originalCategoryList = res.data || []
+      
+      const mappedList = originalCategoryList.map(category => ({
+        id: category.id || '',
+        name: category.name || '未命名分类',
+        nodeCount: category.nodeCount || 0,
+        lastNode: category.lastNode || '',
+        createTime: category.createTime || '',
+        type: category.type || ''
+      }))
+      
+      // 核心逻辑：按创建时间降序排列
+      mappedList.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
+      categories.value = mappedList
     }
-    const originalCategoryList = result.data || []
-    categories.value = originalCategoryList.map(category => ({
-      id: category.id || '',
-      name: category.name || '未命名分类',
-      nodeCount: category.nodeCount || 0,
-      lastNode: category.lastNode || '',
-      createTime: category.createTime || '',
-      type: category.type || ''
-    }))
-    // 核心修改：将升序改为降序，最新添加的分类排在前面
-    categories.value.sort((a, b) => new Date(b.createTime) - new Date(a.createTime))
   } catch (err) {
     console.error('加载分类失败：', err)
-    alert('加载分类失败，请检查网络连接或联系管理员')
+    // 注意：拦截器里已经写了 ElMessage.error，这里不需要再 alert，除非你想双重提示
   } finally {
     loading.value = false
   }
 }
 
 /**
- * 打开弹窗：加nextTick保证DOM渲染完成，避免动画卡顿
+ * 打开弹窗
  */
 const openModal = async (type) => {
   currentMainCategory.value = type
@@ -142,7 +147,7 @@ const closeModal = () => {
 }
 
 /**
- * 筛选对应type的分类（支持「算法」类型筛选）
+ * 筛选对应type的分类
  */
 const filteredCategories = computed(() => {
   if (!currentMainCategory.value) return []
@@ -150,15 +155,14 @@ const filteredCategories = computed(() => {
 })
 
 /**
- * 跳转到分类详情：加nextTick保证弹窗关闭流畅
+ * 跳转到分类详情
  */
 const goToCategory = async (growthId) => {
   if (!growthId) return
   closeModal()
   await nextTick()
-  // 修改为 query 形式
   router.push({
-    path: '/category-detail', // 确保这个路径对应你的 CategoryDetail 组件
+    path: '/category-detail',
     query: { id: growthId }
   })
 }

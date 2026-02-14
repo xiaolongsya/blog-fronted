@@ -218,11 +218,8 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
-import axios from 'axios'
-
-// 配置 Axios
-axios.defaults.baseURL = 'https://xiaolongya.cn/blog'
-axios.defaults.timeout = 10000
+// 1. 替换为你的 request 工具
+import request from '@/utils/request'
 
 const USER_NAME_KEY = 'dragon_island_visitor_name'
 
@@ -255,9 +252,8 @@ const sliderLeft = ref(0)
 const sliderBox = ref(null) 
 const isDragging = ref(false) 
 const sliderWidth = ref(0) 
-const btnWidth = ref(50) // 按钮宽度
+const btnWidth = ref(50) 
 
-// 计算最大滑动距离
 const maxLeft = computed(() => sliderWidth.value - btnWidth.value)
 
 // === 图片查看器状态 ===
@@ -267,7 +263,6 @@ let state = { scale: 1, x: 0, y: 0, isDragging: false, isPinching: false, startX
 let dims = { imgW: 0, imgH: 0, winW: 0, winH: 0 }
 
 // === 图片查看器方法 ===
-
 const handleContentClick = (e) => {
   if (e.target.tagName === 'IMG') {
     showBigImage(e.target.src)
@@ -346,22 +341,10 @@ const saveName = (n) => { if(n && n.trim()){ localStorage.setItem(USER_NAME_KEY,
 
 const formatTime = (t) => { if(!t) return '未知'; try { return t.replace(/T/, ' ').replace(/\+.+/, '') } catch(e){ return t } }
 
-// ✅ 修复后的 formatContent：支持 [img] 标签转义
 const formatContent = (t) => { 
   if(!t) return ''; 
-  // 1. 先进行HTML转义，防止XSS
-  let safeText = t.replace(/&/g, "&amp;")
-                  .replace(/</g, "&lt;")
-                  .replace(/>/g, "&gt;")
-                  .replace(/"/g, "&quot;")
-                  .replace(/'/g, "&#039;");
-
-  // 2. 解析自定义 [img]URL[/img] 标签，加上缩略图样式
-  safeText = safeText.replace(/\[img\](.*?)\[\/img\]/g, (match, url) => {
-     return `<img src="${url}" class="comment-thumb" />`
-  });
-
-  // 3. 处理换行
+  let safeText = t.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#039;");
+  safeText = safeText.replace(/\[img\](.*?)\[\/img\]/g, (match, url) => `<img src="${url}" class="comment-thumb" />`);
   return safeText.replace(/\n/g, '<br>'); 
 }
 
@@ -381,7 +364,6 @@ const displayPageNums = computed(() => {
 
 const triggerFileUpload = () => fileInput.value.click()
 
-// ✅ 修复后的文件上传：插入 [img] 标签
 const handleFileChange = async (e) => {
   const files = e.target.files
   if (!files || !files.length) return
@@ -389,23 +371,25 @@ const handleFileChange = async (e) => {
   try {
     for (let i = 0; i < files.length; i++) {
       const fd = new FormData(); fd.append('file', files[i])
-      const res = await axios.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
-      if (res.data.code === 200) {
-        // 使用 [img] 标记，前后加换行
-        content.value += `\n[img]${res.data.data}[/img]\n` 
+      const res = await request.post('/upload/image', fd, { headers: { 'Content-Type': 'multipart/form-data' } })
+      // 适配 request 结构：res 直接是后端数据对象
+      if (res.code === 200) {
+        content.value += `\n[img]${res.data}[/img]\n` 
       }
-      else alert('上传失败：'+res.data.msg)
+      else alert('上传失败：'+res.msg)
     }
   } catch { alert('网络错误') } finally { isUploading.value = false; e.target.value = '' }
 }
 
+// === 核心数据获取逻辑 (已修正解构层级) ===
 const fetchCommentList = async (bg = false) => {
   if (!bg) isLoading.value = true
   const replyMap = new Map(); commentList.value.forEach(i => replyMap.set(i.id, i.visibleReplyCount))
   try {
-    const res = await axios.get('/comment/listPage', { params: { pageNum: pageNum.value, pageSize: pageSize.value } })
-    if (res.data.code === 200) {
-      const d = res.data.data || {}
+    const res = await request.get('/comment/listPage', { params: { pageNum: pageNum.value, pageSize: pageSize.value } })
+    // 注意：request 拦截器返回的是后端返回的 data(code/msg/data) 这一层
+    if (res.code === 200) {
+      const d = res.data || {} // 这里是分页对象
       totalCount.value = d.total || 0
       commentList.value = (d.list || []).map(i => {
         const reps = (d.replyList || []).filter(r => r.commentId === i.id).sort((a,b)=> new Date(b.createTime)-new Date(a.createTime))
@@ -428,9 +412,9 @@ const submitReply = async (cid) => {
   if (!replyForm.value.name.trim() || !replyForm.value.content.trim()) return alert('请完善信息')
   isSubmittingReply.value = true; saveName(replyForm.value.name)
   try {
-    const res = await axios.post('/reply/add', { commentId: cid, name: replyForm.value.name, content: replyForm.value.content })
-    if (res.data.code === 200) { activeReplyId.value = null; await fetchCommentList(true) }
-    else alert(res.data.msg)
+    const res = await request.post('/reply/add', { commentId: cid, name: replyForm.value.name, content: replyForm.value.content })
+    if (res.code === 200) { activeReplyId.value = null; await fetchCommentList(true) }
+    else alert(res.msg)
   } catch { alert('异常') } finally { isSubmittingReply.value = false }
 }
 
@@ -440,9 +424,9 @@ const submitComment = async () => {
   if (isSubmitting.value || ipLimitExceeded.value) return
   isSubmitting.value = true; saveName(name.value)
   try {
-    const res = await axios.post('/comment/upload', { name: name.value.trim(), content: content.value.trim(), contact: contact.value.trim() })
-    if (res.data?.code === 200) { alert('✅ 留言成功！'); content.value = ''; showSliderVerify.value = false; pageNum.value = 1; await fetchCommentList(false) }
-    else { alert(`❌ ${res.data?.msg||'失败'}`); if (res.data?.code === 403) ipLimitExceeded.value = true; showSliderVerify.value = false }
+    const res = await request.post('/comment/upload', { name: name.value.trim(), content: content.value.trim(), contact: contact.value.trim() })
+    if (res?.code === 200) { alert('✅ 留言成功！'); content.value = ''; showSliderVerify.value = false; pageNum.value = 1; await fetchCommentList(false) }
+    else { alert(`❌ ${res?.msg||'失败'}`); if (res?.code === 403) ipLimitExceeded.value = true; showSliderVerify.value = false }
   } catch { alert('网络异常'); showSliderVerify.value = false } finally { isSubmitting.value = false }
 }
 
@@ -453,7 +437,7 @@ const handleSubmit = () => {
   setTimeout(() => { if (sliderBox.value) sliderWidth.value = sliderBox.value.offsetWidth }, 100)
 }
 
-// === ⚡️ 优化的滑块逻辑 ===
+// === 滑块逻辑 ===
 const startDrag = (e) => {
   if (sliderLeft.value >= maxLeft.value) return 
   isDragging.value = true
@@ -500,7 +484,6 @@ onUnmounted(() => {
   window.removeEventListener('resize', updateDims)
 })
 const updateSliderWidth = () => { if (sliderBox.value) sliderWidth.value = sliderBox.value.offsetWidth }
-
 </script>
 
 <style scoped>

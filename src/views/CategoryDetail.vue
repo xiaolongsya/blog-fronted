@@ -83,9 +83,10 @@
 <script setup>
 import { ref, onMounted, computed } from 'vue'
 import { useRoute, useRouter } from 'vue-router'
-import axios from 'axios'
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css/github-markdown.css'
+// ========== 改动1：引入我们刚刚封装好的全局 request，替换掉 axios ==========
+import request from '@/utils/request'
 
 const route = useRoute()
 const router = useRouter()
@@ -161,11 +162,14 @@ const fetchNodes = async () => {
   if (loading.value || !hasMore.value) return
   loading.value = true
   try {
-    const res = await axios.get(`https://xiaolongya.cn/blog/node/listPage`, {
+    // ========== 改动2：使用 request 发送请求 ==========
+    const res = await request.get(`https://xiaolongya.cn/blog/node/listPage`, {
       params: { pageNum: pageNum.value, pageSize: 5, growthId: route.query.id }
     })
-    if (res.data.code === 200) {
-      const newData = (res.data.data || []).map(node => ({
+    
+    // ========== 改动3：剥掉了一层 .data，直接使用 res.code 和 res.data ==========
+    if (res.code === 200) {
+      const newData = (res.data || []).map(node => ({
         ...node,
         mixContent: parseMixContent(node.content, node.imgUrls)
       }))
@@ -173,7 +177,10 @@ const fetchNodes = async () => {
       if (newData.length < 5) hasMore.value = false
       else pageNum.value++
     }
-  } catch (err) { console.error(err) }
+  } catch (err) { 
+    // 被拦截器捕获429报错后会走到这里，防止页面白屏报错
+    console.error('请求失败或被限流:', err) 
+  }
   finally { loading.value = false }
 }
 

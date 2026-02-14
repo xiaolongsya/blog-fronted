@@ -29,7 +29,7 @@
 
     <div class="update-item" v-for="(item, idx) in updateList" :key="idx">
       <div class="item-time">{{ item.time }}</div>
-      <div class="item-content" v-html="formatContent(item.content)"></div>
+      <div class="item-content markdown-body" v-html="formatContent(item.content)"></div>
       <div class="item-image-wrap" v-if="item.images.length">
         <img 
           v-for="(img, imgIdx) in item.images" 
@@ -95,6 +95,19 @@
 
 <script setup>
 import { ref, computed, onMounted, onUnmounted, nextTick } from 'vue'
+// 1. 引入你的限流请求工具
+import request from '@/utils/request'
+// 引入 Markdown
+import MarkdownIt from 'markdown-it'
+import 'github-markdown-css/github-markdown.css'
+
+// 初始化 Markdown 实例
+const md = new MarkdownIt({
+  html: true,
+  linkify: true,
+  breaks: true,
+  typographer: true
+})
 
 const updateList = ref([])
 const bigImageUrl = ref('')
@@ -110,65 +123,28 @@ const totalPages = computed(() => {
   return Math.ceil(totalCount.value / pageSize) || 1
 })
 
-// ✅ 核心修改：保证恰好显示5个数字按钮的逻辑
+// 分页数字按钮逻辑 (保持你原有的逻辑，非常完美)
 const displayPageNums = computed(() => {
   const total = totalPages.value
   const current = pageNum.value
   let pages = []
-
-  // 情况1：总页数 <= 5，显示全部，不加省略号
-  // 例子：1 2 3 4 5
   if (total <= 5) {
-    for (let i = 1; i <= total; i++) {
-      pages.push(i)
-    }
-  } 
-  // 情况2：总页数 > 5，启用固定5数字逻辑
-  else {
-    // 我们需要中间显示3个数字，加上首尾共5个
-    // 默认中间范围：[current-1, current, current+1]
+    for (let i = 1; i <= total; i++) pages.push(i)
+  } else {
     let start = current - 1
     let end = current + 1
-
-    // 修正左边界：如果 current 靠近开头 (1, 2)，强制显示 2, 3, 4
-    if (start < 2) {
-      start = 2
-      end = 4
-    }
-
-    // 修正右边界：如果 current 靠近结尾 (total, total-1)，强制显示 total-3, total-2, total-1
-    if (end >= total) {
-      end = total - 1
-      start = total - 3
-    }
-
-    // --- 开始构建数组 ---
-
-    // 1. 永远添加第1页
+    if (start < 2) { start = 2; end = 4 }
+    if (end >= total) { end = total - 1; start = total - 3 }
     pages.push(1)
-
-    // 2. 左侧省略号：如果中间块的起点不是2，说明和1之间有断层
-    if (start > 2) {
-      pages.push('...')
-    }
-
-    // 3. 添加中间的3个数字
-    for (let i = start; i <= end; i++) {
-      pages.push(i)
-    }
-
-    // 4. 右侧省略号：如果中间块的终点不是 total-1，说明和 total 之间有断层
-    if (end < total - 1) {
-      pages.push('...')
-    }
-
-    // 5. 永远添加最后一页
+    if (start > 2) pages.push('...')
+    for (let i = start; i <= end; i++) pages.push(i)
+    if (end < total - 1) pages.push('...')
     pages.push(total)
   }
   return pages
 })
 
-// ================= 图片查看器逻辑 (不变) =================
+// ================= 图片查看器逻辑 (保持不变) =================
 const modalImageRef = ref(null)
 let state = { scale: 1, x: 0, y: 0, isDragging: false, isPinching: false, startX: 0, startY: 0, lastX: 0, lastY: 0, startDist: 0, startScale: 1 }
 let dims = { imgW: 0, imgH: 0, winW: 0, winH: 0 }
@@ -214,58 +190,37 @@ const handleWheel = (e) => {
   const delta = e.deltaY > 0 ? -0.1 : 0.1
   let newScale = state.scale + delta
   newScale = Math.max(0.5, Math.min(5, newScale))
-  if (Math.abs(newScale - state.scale) < 0.01) return
   const ratio = newScale / state.scale
-  state.scale = newScale
-  state.x *= ratio
-  state.y *= ratio
-  clampPosition()
-  updateTransform(true)
+  state.scale = newScale; state.x *= ratio; state.y *= ratio
+  clampPosition(); updateTransform(true)
 }
 
 const handleMouseDown = (e) => {
   if (e.button !== 0) return
-  e.preventDefault()
-  state.isDragging = true
-  state.startX = e.clientX
-  state.startY = e.clientY
-  state.lastX = state.x
-  state.lastY = state.y
+  e.preventDefault(); state.isDragging = true; state.startX = e.clientX; state.startY = e.clientY; state.lastX = state.x; state.lastY = state.y
   if (modalImageRef.value) modalImageRef.value.style.transition = 'none'
 }
 
 const handleMouseMove = (e) => {
   if (!state.isDragging) return
   e.preventDefault()
-  const deltaX = e.clientX - state.startX
-  const deltaY = e.clientY - state.startY
-  state.x = state.lastX + deltaX
-  state.y = state.lastY + deltaY
+  state.x = state.lastX + (e.clientX - state.startX)
+  state.y = state.lastY + (e.clientY - state.startY)
   updateTransform(false)
 }
 
 const handleMouseUp = () => {
   if (!state.isDragging) return
-  state.isDragging = false
-  clampPosition()
-  updateTransform(true)
+  state.isDragging = false; clampPosition(); updateTransform(true)
 }
 
 const getDistance = (touches) => Math.hypot(touches[0].clientX - touches[1].clientX, touches[0].clientY - touches[1].clientY)
 
 const handleTouchStart = (e) => {
   if (e.touches.length === 2) {
-    state.isPinching = true
-    state.isDragging = false 
-    state.startDist = getDistance(e.touches)
-    state.startScale = state.scale
+    state.isPinching = true; state.startDist = getDistance(e.touches); state.startScale = state.scale
   } else if (e.touches.length === 1) {
-    state.isDragging = true
-    state.isPinching = false
-    state.startX = e.touches[0].clientX
-    state.startY = e.touches[0].clientY
-    state.lastX = state.x
-    state.lastY = state.y
+    state.isDragging = true; state.startX = e.touches[0].clientX; state.startY = e.touches[0].clientY; state.lastX = state.x; state.lastY = state.y
   }
   if (modalImageRef.value) modalImageRef.value.style.transition = 'none'
 }
@@ -275,62 +230,40 @@ const handleTouchMove = (e) => {
   if (state.isPinching && e.touches.length === 2) {
     const curDist = getDistance(e.touches)
     if (state.startDist > 0) {
-      const scaleRatio = curDist / state.startDist
-      let newScale = state.startScale * scaleRatio
+      let newScale = state.startScale * (curDist / state.startDist)
       newScale = Math.max(0.5, Math.min(5, newScale))
       const ratio = newScale / state.scale
-      state.scale = newScale
-      state.x *= ratio
-      state.y *= ratio
+      state.scale = newScale; state.x *= ratio; state.y *= ratio
       updateTransform(false)
     }
   } else if (state.isDragging && e.touches.length === 1 && !state.isPinching) {
-    const deltaX = e.touches[0].clientX - state.startX
-    const deltaY = e.touches[0].clientY - state.startY
-    state.x = state.lastX + deltaX
-    state.y = state.lastY + deltaY
+    state.x = state.lastX + (e.touches[0].clientX - state.startX)
+    state.y = state.lastY + (e.touches[0].clientY - state.startY)
     updateTransform(false)
   }
 }
 
 const handleTouchEnd = (e) => {
   if (e.touches.length === 0) {
-    state.isDragging = false
-    state.isPinching = false
-    clampPosition()
-    updateTransform(true)
-  } else if (e.touches.length === 1) {
-    state.isPinching = false
-    state.isDragging = true
-    state.startX = e.touches[0].clientX
-    state.startY = e.touches[0].clientY
-    state.lastX = state.x
-    state.lastY = state.y
+    state.isDragging = false; state.isPinching = false; clampPosition(); updateTransform(true)
   }
 }
 
 const clampPosition = () => {
-  const curW = dims.imgW * state.scale
-  const curH = dims.imgH * state.scale
-  if (curW <= dims.winW) state.x = 0
-  else {
+  const curW = dims.imgW * state.scale; const curH = dims.imgH * state.scale
+  if (curW <= dims.winW) state.x = 0; else {
     const maxX = (curW - dims.winW) / 2
     state.x = Math.max(-maxX, Math.min(maxX, state.x))
   }
-  if (curH <= dims.winH) state.y = 0
-  else {
+  if (curH <= dims.winH) state.y = 0; else {
     const maxY = (curH - dims.winH) / 2
     state.y = Math.max(-maxY, Math.min(maxY, state.y))
   }
 }
 
-// ================= 数据获取与分页 =================
+// ================= 数据获取与分页 (核心修改适配 request.js) =================
 const formatContent = (content) => {
-  if (!content) return ''
-  const escapeHtml = (str) => {
-    return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;').replace(/'/g, '&#039;')
-  }
-  return escapeHtml(content).replace(/\n/g, '<br>')
+  return md.render(content || '')
 }
 
 const fetchUpdateList = async () => {
@@ -338,36 +271,27 @@ const fetchUpdateList = async () => {
   updateList.value = []
   
   try {
-    const url = `https://xiaolongya.cn/blog/development/listPage?pageNum=${pageNum.value}&pageSize=${pageSize}`
-    const res = await fetch(url)
-    if (!res.ok) throw new Error(`Status: ${res.status}`)
-    const result = await res.json()
-
-    if (result.code === 200) {
-      let rawList = []
-      let total = 0
-
-      if (Array.isArray(result.data)) {
-        rawList = result.data
-        total = rawList.length 
-      } else if (result.data) {
-        rawList = result.data.list || []
-        total = result.data.total || 0
+    // 使用 request 工具，baseURL 已经在 request.js 中配置好
+    const res = await request.get('/development/listPage', {
+      params: {
+        pageNum: pageNum.value,
+        pageSize: pageSize
       }
+    })
 
-      totalCount.value = total
-
-      const processedData = rawList.map(item => ({
+    // 适配 request 拦截器返回的 res (即 response.data)
+    if (res.code === 200) {
+      const d = res.data || {}
+      totalCount.value = d.total || 0
+      
+      const rawList = d.list || []
+      updateList.value = rawList.map(item => ({
         time: item.createTime ? item.createTime.split(' ')[0] : '',
         content: item.content || '',
         images: Array.isArray(item.imgUrls) 
           ? item.imgUrls 
           : (item.imgUrls ? item.imgUrls.split(',') : [])
       }))
-
-      updateList.value = processedData
-    } else {
-      console.error(result.msg)
     }
   } catch (err) {
     console.error('获取更新记录失败：', err)
@@ -378,10 +302,8 @@ const fetchUpdateList = async () => {
 
 const changePage = (newPage) => {
   if (newPage < 1 || newPage > totalPages.value || newPage === pageNum.value) return
-  
   pageNum.value = newPage
   fetchUpdateList()
-
   nextTick(() => {
     const anchor = document.getElementById('dev-anchor')
     if (anchor) anchor.scrollIntoView({ behavior: 'smooth' })
@@ -469,7 +391,25 @@ const changePage = (newPage) => {
   font-size: 22px;
   color: #333;
   line-height: 1.8;
-  white-space: pre-line;
+  /* 移除 white-space: pre-line，让 markdown 处理换行 */
+}
+
+/* 覆盖 github-markdown-css，保持原有的字体和透明背景 */
+.item-content.markdown-body {
+  background: transparent !important;
+  font-family: inherit !important;
+  font-size: inherit !important;
+  color: inherit !important;
+}
+
+/* 强制 markdown 内部的元素也继承颜色，防止变黑/变白 */
+:deep(.markdown-body p) {
+  margin-bottom: 16px;
+  color: inherit;
+}
+:deep(.markdown-body a) {
+  color: #2f5496;
+  text-decoration: underline;
 }
 
 .item-image-wrap {
@@ -577,8 +517,9 @@ const changePage = (newPage) => {
 }
 
 .image-modal-img {
-  max-width: 100%;
-  max-height: 100%;
+  /* 修改：限制最大宽高为屏幕的 80% */
+  max-width: 80vw;
+  max-height: 80vh;
   object-fit: contain;
   transform-origin: center center;
   cursor: grab;

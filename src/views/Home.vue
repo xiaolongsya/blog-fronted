@@ -181,7 +181,9 @@
 <script setup>
 import { ref, nextTick, watch } from 'vue'
 import { useRouter } from 'vue-router'
-import axios from 'axios'
+// 1. 引入统一的请求工具
+import request from '@/utils/request'
+import { ElMessage } from 'element-plus'
 
 const router = useRouter()
 
@@ -213,10 +215,15 @@ const handleSearch = async () => {
   hasSearched.value = true 
   
   try {
-    const res = await axios.get(`https://xiaolongya.cn/blog/node/listByKeyword?keyword=${keyword.value}`)
+    // 2. 使用 request.get，并适配 res.code === 200
+    const res = await request.get(`/node/listByKeyword`, {
+      params: { keyword: keyword.value }
+    })
+    
+    // 这里的延时是为了保留你原有的搜索动画体感
     setTimeout(() => {
-      if (res.data.code === 200) {
-        searchResult.value = res.data.data || []
+      if (res.code === 200) {
+        searchResult.value = res.data || []
       }
       isSearching.value = false
     }, 300)
@@ -312,17 +319,27 @@ const closeLoginModal = () => {
 
 const handleLogin = async () => {
   if (!loginForm.value.username || !loginForm.value.password) {
-    alert('账号或密码为空！'); return
+    ElMessage.warning('账号或密码为空！')
+    return
   }
   isLoginLoading.value = true
   try {
-    const response = await axios.post('https://xiaolongya.cn/blog/user/login', loginForm.value)
-    if (response.data === "登陆成功") {
+    // 3. 使用 request.post，注意：后端返回的是纯字符串 "登陆成功"
+    // request.js 里的拦截器会直接返回 res.data
+    const res = await request.post('/user/login', loginForm.value)
+    
+    if (res === "登陆成功") {
       loginSuccess.value = true;
       sessionStorage.setItem('isAdminLogin', 'true'); 
       setTimeout(() => { router.push('/admin') }, 1500);
-    } else { alert('核验未通过'); }
-  } catch (e) { console.error(e) } finally { isLoginLoading.value = false }
+    } else { 
+      ElMessage.error('核验未通过'); 
+    }
+  } catch (e) { 
+    console.error(e) 
+  } finally { 
+    isLoginLoading.value = false 
+  }
 }
 </script>
 

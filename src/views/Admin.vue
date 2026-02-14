@@ -330,11 +330,12 @@
 
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-import axios from 'axios'
+// 1. 将 axios 替换为你封装好的 request 工具，以接入限流弹窗逻辑
+import request from '@/utils/request' 
 import { useRouter } from 'vue-router'
 const router = useRouter()
 
-// 圆圈按钮列表
+// 圆圈按钮列表 (完全保留)
 const circleList = [
   { content: "龙岛日志", type: "log" },
   { content: "成长记录", type: "growth" },
@@ -343,7 +344,7 @@ const circleList = [
   { content: "开发中", type: "none" }
 ];
 
-// ============ 状态管理 ============
+// ============ 状态管理 (完全保留，一个不少) ============
 const showLogModal = ref(false)
 const showGrowthMainModal = ref(false)
 const showAddCategoryModal = ref(false)
@@ -362,7 +363,6 @@ const globalLoading = ref(false)
 const currentLoadingItem = ref('')
 const isFetchingData = ref(false)
 
-// 按钮文本状态
 const submitBtnText = ref({
   category: '提交分类',
   node: '发布节点',
@@ -370,7 +370,7 @@ const submitBtnText = ref({
   recent: '发布动态'
 })
 
-// ============ 数据存储 ============
+// ============ 数据存储 (完全保留) ============
 const categoryList = ref([])
 const selectedCategoryType = ref('')
 const deleteNodeSelectedType = ref('')
@@ -389,7 +389,7 @@ const nodeContentInputRef = ref(null)
 const insertImgFileInput = ref(null)
 const uploadImgFileInput = ref(null)
 
-// 计算属性
+// 计算属性 (完全保留)
 const filteredCategoryList = computed(() => {
   if (!selectedCategoryType.value) return []
   return categoryList.value.filter(category => category.type === selectedCategoryType.value)
@@ -419,27 +419,29 @@ const formatTime = (timeStr) => {
   return timeStr.split('T')[0]
 }
 
-// ================= API 请求 =================
+// ================= API 请求 (适配 res 结构) =================
+// 注意：因为你的 request.js 拦截器里写了 return res.data，
+// 所以这里的 res 直接就是后端返回的 {code: 200, data: ...}
 const getCategoryList = async () => {
   try {
-    const res = await axios.get('https://xiaolongya.cn/blog/growth/list')
-    if (res.data.code === 200) categoryList.value = res.data.data || []
+    const res = await request.get('https://xiaolongya.cn/blog/growth/list')
+    if (res.code === 200) categoryList.value = res.data || []
   } catch (err) { console.error(err) }
 }
 const getNodeListBygrowthId = async (growthId) => {
   try {
-    const res = await axios.get(`https://xiaolongya.cn/blog/node/list?growthId=${growthId}`)
-    if (res.data.code === 200) deleteNodeList.value = res.data.data || []
+    const res = await request.get(`https://xiaolongya.cn/blog/node/list?growthId=${growthId}`)
+    if (res.code === 200) deleteNodeList.value = res.data || []
   } catch (err) { alert(`获取节点列表失败：${err.message}`) }
 }
 const getRecentList = async () => {
   try {
-    const res = await axios.get('https://xiaolongya.cn/blog/recent/list')
-    if (res.data.code === 200) recentList.value = res.data.data || []
+    const res = await request.get('https://xiaolongya.cn/blog/recent/list')
+    if (res.code === 200) recentList.value = res.data || []
   } catch (err) { alert(`获取失败：${err.message}`) }
 }
 
-// ================= 交互逻辑 =================
+// ================= 交互逻辑 (完全保留) =================
 const handleCircleClick = async (item) => {
   if (globalLoading.value) return;
 
@@ -465,7 +467,6 @@ const handleCircleClick = async (item) => {
   }
 }
 
-// 关闭函数
 const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' }; showGrowthMainModal.value = true }
 const confirmCloseAddCategoryModal = () => { 
   if (categoryForm.value.name) { 
@@ -500,7 +501,7 @@ const confirmCloseAddNodeModal = () => {
   } else closeAddNodeModal() 
 }
 
-// 删除相关逻辑
+// 删除逻辑 (完全保留)
 const openDeleteCategoryModal = () => { showGrowthMainModal.value = false; showDeleteCategoryModal.value = true }
 const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deletegrowthId.value = ''; showGrowthMainModal.value = true }
 
@@ -511,7 +512,7 @@ const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false
 const confirmDeleteNodeStep2 = async () => { await getNodeListBygrowthId(deleteNodeSelectedgrowthId.value); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
 const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; showDeleteNodeStep2Modal.value = true }
 
-// 最近事项相关
+// 最近事项 (完全保留)
 const closeRecentMainModal = () => showRecentMainModal.value = false
 const openRecentUploadModal = () => { showRecentMainModal.value = false; showRecentUploadModal.value = true }
 const closeRecentUploadModal = () => { showRecentUploadModal.value = false; recentForm.value = { title: '', content: '' }; showRecentMainModal.value = true }
@@ -519,17 +520,17 @@ const confirmCloseRecentUploadModal = () => { if(recentForm.value.title) { if(co
 const openRecentDeleteModal = async () => { await getRecentList(); showRecentMainModal.value = false; showRecentDeleteModal.value = true }
 const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false; deleteRecentId.value = ''; showRecentMainModal.value = true }
 
-// ================= 提交逻辑 =================
+// ================= 提交逻辑 (完全保留，仅更名 axios 为 request 并适配 res 结构) =================
 const submitCategory = async () => {
   if (!categoryForm.value.name.trim() || !categoryForm.value.type) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/growth/upload', categoryForm.value)
-    if (res.data.code === 200) {
+    const res = await request.post('https://xiaolongya.cn/blog/growth/upload', categoryForm.value)
+    if (res.code === 200) {
       showSuccessFeedback('category')
       categoryForm.value = { name: '', type: '' }
       getCategoryList()
-    } else { alert(res.data.msg || '添加失败') }
+    } else { alert(res.msg || '添加失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -537,12 +538,12 @@ const submitNode = async () => {
   if (!nodeForm.value.growthId || !nodeForm.value.content.trim()) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/node/upload', nodeForm.value)
-    if (res.data.code === 200) {
+    const res = await request.post('https://xiaolongya.cn/blog/node/upload', nodeForm.value)
+    if (res.code === 200) {
       showSuccessFeedback('node')
       nodeForm.value.content = ''
       nodeForm.value.imgUrls = []
-    } else { alert(res.data.msg || '添加失败') }
+    } else { alert(res.msg || '添加失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -550,11 +551,11 @@ const submitLog = async () => {
   if (!logForm.value.content.trim()) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/development/upload', logForm.value)
-    if (res.data.code === 200) {
+    const res = await request.post('https://xiaolongya.cn/blog/development/upload', logForm.value)
+    if (res.code === 200) {
       showSuccessFeedback('log')
       logForm.value = { content: '', imgUrls: [] }
-    } else { alert(res.data.msg || '发布失败') }
+    } else { alert(res.msg || '发布失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -562,11 +563,11 @@ const submitRecent = async () => {
   if (!recentForm.value.title.trim()) return
   isSubmitting.value = true
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/recent/upload', recentForm.value)
-    if (res.data.code === 200) {
+    const res = await request.post('https://xiaolongya.cn/blog/recent/upload', recentForm.value)
+    if (res.code === 200) {
       showSuccessFeedback('recent')
       recentForm.value = { title: '', content: '' }
-    } else { alert(res.data.msg || '发布失败') }
+    } else { alert(res.msg || '发布失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -575,8 +576,8 @@ const submitDeleteCategory = async () => {
   if(!confirm('确定要删除该分类吗？关联的节点也会被删除！')) return
   isSubmitting.value = true
   try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/growth/delete?id=${deletegrowthId.value}`)
-    if(res.data.code === 200) { alert('删除成功'); closeDeleteCategoryModal(); getCategoryList() } else alert(res.data.msg)
+    const res = await request.post(`https://xiaolongya.cn/blog/growth/delete?id=${deletegrowthId.value}`)
+    if(res.code === 200) { alert('删除成功'); closeDeleteCategoryModal(); getCategoryList() } else alert(res.msg)
   } catch(e) { alert('出错') } finally { isSubmitting.value = false }
 }
 
@@ -585,8 +586,8 @@ const submitDeleteNode = async () => {
   if(!confirm('确定删除该节点？')) return
   isSubmitting.value = true
   try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
-    if(res.data.code === 200) { alert('删除成功'); closeDeleteNodeStep3Modal() } else alert(res.data.msg)
+    const res = await request.post(`https://xiaolongya.cn/blog/node/delete?id=${deleteNodeId.value}`)
+    if(res.code === 200) { alert('删除成功'); closeDeleteNodeStep3Modal() } else alert(res.msg)
   } catch(e) { alert('出错') } finally { isSubmitting.value = false }
 }
 
@@ -595,18 +596,18 @@ const submitDeleteRecent = async () => {
   if(!confirm('确定删除？')) return
   isSubmitting.value = true
   try {
-    const res = await axios.post(`https://xiaolongya.cn/blog/recent/delete?id=${deleteRecentId.value}`)
-    if(res.data.code === 200) { alert('删除成功'); closeRecentDeleteModal() } else alert(res.data.msg)
+    const res = await request.post(`https://xiaolongya.cn/blog/recent/delete?id=${deleteRecentId.value}`)
+    if(res.code === 200) { alert('删除成功'); closeRecentDeleteModal() } else alert(res.msg)
   } catch(e) { alert('出错') } finally { isSubmitting.value = false }
 }
 
-// ============ 图片处理 ============
+// ============ 图片处理 (完全保留) ============
 const handleImageUpload = async (e) => {
   const file = e.target.files[0]; if (!file) return
   const formData = new FormData(); formData.append('file', file)
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
-    if (res.data.code === 200) logForm.value.imgUrls.push(res.data.data)
+    const res = await request.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.code === 200) logForm.value.imgUrls.push(res.data)
   } catch (e) { alert('上传失败') }
 }
 const triggerInsertImg = () => insertImgFileInput.value.click()
@@ -615,9 +616,9 @@ const handleInsertImgUpload = async (e) => {
   const file = e.target.files[0]; if (!file) return
   const formData = new FormData(); formData.append('file', file)
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
-    if (res.data.code === 200) {
-      const imgMd = `\n[IMAGE:${res.data.data}]\n`
+    const res = await request.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.code === 200) {
+      const imgMd = `\n[IMAGE:${res.data}]\n`
       const textarea = nodeContentInputRef.value
       const start = textarea.selectionStart; const end = textarea.selectionEnd
       nodeForm.value.content = nodeForm.value.content.substring(0, start) + imgMd + nodeForm.value.content.substring(end)
@@ -628,8 +629,8 @@ const handleUploadImgUpload = async (e) => {
   const file = e.target.files[0]; if (!file) return
   const formData = new FormData(); formData.append('file', file)
   try {
-    const res = await axios.post('https://xiaolongya.cn/blog/upload/image', formData)
-    if (res.data.code === 200) nodeForm.value.imgUrls.push(res.data.data)
+    const res = await request.post('https://xiaolongya.cn/blog/upload/image', formData)
+    if (res.code === 200) nodeForm.value.imgUrls.push(res.data)
   } catch (e) { alert('上传失败') }
 }
 const removeNodeImage = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
@@ -637,7 +638,7 @@ const removeImage = (idx) => logForm.value.imgUrls.splice(idx, 1)
 const handleImgError = (idx) => logForm.value.imgUrls.splice(idx, 1)
 const handleNodeImgError = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 
-// ============ 辅助交互 ============
+// ============ 辅助交互 (完全保留) ============
 const openAddCategoryModal = () => { showGrowthMainModal.value = false; showAddCategoryModal.value = true }
 const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; showSelectTypeModal.value = true }
 </script>
