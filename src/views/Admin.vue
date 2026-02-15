@@ -2,7 +2,7 @@
   <div class="admin-page">
     <section class="admin-header">
       <h1 class="admin-title unselectable">龙岛控制台</h1>
-      </section>
+    </section>
 
     <section class="admin-main-content">
       <div 
@@ -325,26 +325,131 @@
       </div>
     </Transition>
 
+    <Transition name="modal-fast">
+      <div class="modal-mask" v-if="showStackModal" @click="closeStackModal">
+        <div class="modal-container gpu-layer stack-modal-width" @click.stop>
+          <div class="modal-decoration"></div>
+          <div class="modal-header">
+            <h2 class="modal-title">⚔️ 龙岛武库管理</h2>
+          </div>
+
+          <div class="tab-controls">
+            <button class="tab-btn" :class="{ active: stackActiveTab === 'upload' }" @click="stackActiveTab = 'upload'">
+              ➕ 登记新武器 (上传)
+            </button>
+            <button class="tab-btn" :class="{ active: stackActiveTab === 'delete' }" @click="stackActiveTab = 'delete'">
+              🗑️ 销毁旧武器 (删除)
+            </button>
+          </div>
+
+          <div class="modal-body scroll-content">
+            
+            <div v-if="stackActiveTab === 'upload'" class="stack-panel fade-in">
+              <div class="modal-form-item">
+                <label>技术归属分类</label>
+                <div class="type-selector">
+                  <label class="radio-label" v-for="type in stackTypes" :key="type">
+                    <input type="radio" :value="type" v-model="stackForm.type" />
+                    <span class="radio-text">{{ type }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="modal-form-item">
+                <label>技术栈名称</label>
+                <input type="text" v-model="stackForm.name" placeholder="例如：Mysql" class="modal-input" />
+              </div>
+
+              <div class="modal-form-item">
+                <label>技术栈图标 (图片)</label>
+                <input type="file" accept="image/*" @change="handleStackImgChange" class="modal-input file-input" />
+                <div class="img-preview-box" v-if="stackForm.imgUrl">
+                  <img :src="stackForm.imgUrl" alt="预览图" />
+                </div>
+              </div>
+
+              <div class="modal-form-item">
+                <label>熟练度星级</label>
+                <div class="star-rating unselectable">
+                  <span 
+                    v-for="n in 5" 
+                    :key="'star-'+n" 
+                    class="star" 
+                    :class="{ 'active': n <= stackForm.starRating }"
+                    @click="stackForm.starRating = n"
+                  >⭐</span>
+                </div>
+                <p class="star-tip">当前选定：{{ stackForm.starRating }} 星</p>
+              </div>
+
+              <div class="modal-btn-group">
+                <button class="modal-submit-btn hover-scale" @click="submitStack" :disabled="isStackUploading">
+                  {{ isStackUploading ? '正在入库中...' : '确认入库' }}
+                </button>
+              </div>
+            </div>
+
+            <div v-if="stackActiveTab === 'delete'" class="stack-panel fade-in">
+              
+              <div class="modal-form-item">
+                <label>请选择要查阅的分类：</label>
+                <div class="type-selector" style="margin-bottom: 10px;">
+                  <label class="radio-label" v-for="type in stackTypes" :key="'del-'+type">
+                    <input type="radio" :value="type" v-model="stackDeleteType" />
+                    <span class="radio-text">{{ type }}</span>
+                  </label>
+                </div>
+              </div>
+
+              <div class="stack-list-container">
+                <div v-if="filteredStackList.length === 0" class="empty-tip">
+                  该分类下空空如也~
+                </div>
+                <div class="stack-list" v-else>
+                  <div class="stack-item" v-for="item in filteredStackList" :key="item.id">
+                    <div class="stack-item-info">
+                      <img :src="item.imgUrl" class="stack-item-img" :alt="item.name" />
+                      <div class="stack-item-text">
+                        <span class="stack-item-name">{{ item.name }}</span>
+                        <span class="stack-item-stars">
+                          <span v-for="s in item.starRating" :key="'s-'+item.id+'-'+s">⭐</span>
+                        </span>
+                      </div>
+                    </div>
+                    <button class="delete-icon-btn hover-scale" @click="deleteStack(item.id)">移除</button>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+          
+          <button class="modal-close-text-btn" @click="closeStackModal">关闭武库</button>
+        </div>
+      </div>
+    </Transition>
+
   </div>
 </template>
 
 <script setup>
 import { ref, onMounted, computed, nextTick } from 'vue'
-// 1. 将 axios 替换为你封装好的 request 工具，以接入限流弹窗逻辑
 import request from '@/utils/request' 
 import { useRouter } from 'vue-router'
+import { ElMessage } from 'element-plus' 
+
 const router = useRouter()
 
-// 圆圈按钮列表 (完全保留)
+// 圆圈按钮列表 (第四个改成了技术栈)
 const circleList = [
   { content: "龙岛日志", type: "log" },
   { content: "成长记录", type: "growth" },
   { content: "最近事项", type: "recent" },
-  { content: "开发中", type: "none" },
+  { content: "龙岛武库\n(技术栈)", type: "stack" },
   { content: "开发中", type: "none" }
 ];
 
-// ============ 状态管理 (完全保留，一个不少) ============
+// ============ 状态管理 ============
 const showLogModal = ref(false)
 const showGrowthMainModal = ref(false)
 const showAddCategoryModal = ref(false)
@@ -370,7 +475,7 @@ const submitBtnText = ref({
   recent: '发布动态'
 })
 
-// ============ 数据存储 (完全保留) ============
+// ============ 数据存储 ============
 const categoryList = ref([])
 const selectedCategoryType = ref('')
 const deleteNodeSelectedType = ref('')
@@ -389,7 +494,7 @@ const nodeContentInputRef = ref(null)
 const insertImgFileInput = ref(null)
 const uploadImgFileInput = ref(null)
 
-// 计算属性 (完全保留)
+// ================= 计算属性 =================
 const filteredCategoryList = computed(() => {
   if (!selectedCategoryType.value) return []
   return categoryList.value.filter(category => category.type === selectedCategoryType.value)
@@ -401,27 +506,13 @@ const deleteNodeFilteredCategoryList = computed(() => {
 
 // ================= 工具函数 =================
 const showSuccessFeedback = (type) => {
-  const originalText = {
-    category: '提交分类',
-    node: '发布节点',
-    log: '发布日志',
-    recent: '发布动态'
-  }[type]
-  
+  const originalText = { category: '提交分类', node: '发布节点', log: '发布日志', recent: '发布动态' }[type]
   submitBtnText.value[type] = '✨ 发布成功'
-  setTimeout(() => {
-    submitBtnText.value[type] = originalText
-  }, 2000)
+  setTimeout(() => { submitBtnText.value[type] = originalText }, 2000)
 }
+const formatTime = (timeStr) => { if(!timeStr) return ''; return timeStr.split('T')[0] }
 
-const formatTime = (timeStr) => {
-  if(!timeStr) return ''
-  return timeStr.split('T')[0]
-}
-
-// ================= API 请求 (适配 res 结构) =================
-// 注意：因为你的 request.js 拦截器里写了 return res.data，
-// 所以这里的 res 直接就是后端返回的 {code: 200, data: ...}
+// ================= API 请求 =================
 const getCategoryList = async () => {
   try {
     const res = await request.get('https://xiaolongya.cn/blog/growth/list')
@@ -441,7 +532,7 @@ const getRecentList = async () => {
   } catch (err) { alert(`获取失败：${err.message}`) }
 }
 
-// ================= 交互逻辑 (完全保留) =================
+// ================= 交互逻辑 =================
 const handleCircleClick = async (item) => {
   if (globalLoading.value) return;
 
@@ -449,62 +540,31 @@ const handleCircleClick = async (item) => {
     showLogModal.value = true
   } 
   else if (item.type === "growth") {
-    globalLoading.value = true
-    currentLoadingItem.value = 'growth'
-    showGrowthMainModal.value = true
-    isFetchingData.value = true
-    
-    try {
-      await getCategoryList();
-    } finally {
-      isFetchingData.value = false
-      globalLoading.value = false
-      currentLoadingItem.value = ''
-    }
+    globalLoading.value = true; currentLoadingItem.value = 'growth'; showGrowthMainModal.value = true; isFetchingData.value = true
+    try { await getCategoryList(); } finally { isFetchingData.value = false; globalLoading.value = false; currentLoadingItem.value = '' }
   } 
   else if (item.type === "recent") {
     showRecentMainModal.value = true
   }
+  // 🚀 【优化点】技术栈：秒开弹窗，去除强制延迟和蓝色等待光标
+  else if (item.type === "stack") {
+    showStackModal.value = true;
+    fetchStackList(); // 在后台默默拉取列表数据，不阻塞UI渲染
+  }
 }
 
 const closeAddCategoryModal = () => { showAddCategoryModal.value = false; categoryForm.value = { name: '', type: '' }; showGrowthMainModal.value = true }
-const confirmCloseAddCategoryModal = () => { 
-  if (categoryForm.value.name) { 
-    if(confirm('确认关闭？未提交的数据将丢失')) closeAddCategoryModal() 
-  } else closeAddCategoryModal() 
-}
-
+const confirmCloseAddCategoryModal = () => { if (categoryForm.value.name) { if(confirm('确认关闭？未提交的数据将丢失')) closeAddCategoryModal() } else closeAddCategoryModal() }
 const closeGrowthMainModal = () => { showGrowthMainModal.value = false; isFetchingData.value = false }
-
 const closeLogModal = () => { showLogModal.value = false; logForm.value = { content: '', imgUrls: [] } }
 const confirmCloseLogModal = () => { if (logForm.value.content) { if(confirm('确认关闭？数据将丢失')) closeLogModal() } else closeLogModal() }
-
 const closeSelectTypeModal = () => { showSelectTypeModal.value = false; selectedCategoryType.value = ''; showGrowthMainModal.value = true }
-const confirmCategoryType = async () => {
-  if (!selectedCategoryType.value) return
-  isSubmitting.value = true
-  await getCategoryList()
-  isSubmitting.value = false
-  showSelectTypeModal.value = false
-  showAddNodeModal.value = true
-}
+const confirmCategoryType = async () => { if (!selectedCategoryType.value) return; isSubmitting.value = true; await getCategoryList(); isSubmitting.value = false; showSelectTypeModal.value = false; showAddNodeModal.value = true }
+const closeAddNodeModal = () => { showAddNodeModal.value = false; nodeForm.value = { growthId: '', content: '', imgUrls: [] }; selectedCategoryType.value = ''; showGrowthMainModal.value = true }
+const confirmCloseAddNodeModal = () => { if (nodeForm.value.content || nodeForm.value.imgUrls.length > 0) { if(confirm('确认关闭？数据将丢失')) closeAddNodeModal() } else closeAddNodeModal() }
 
-const closeAddNodeModal = () => { 
-  showAddNodeModal.value = false
-  nodeForm.value = { growthId: '', content: '', imgUrls: [] }
-  selectedCategoryType.value = '' 
-  showGrowthMainModal.value = true 
-}
-const confirmCloseAddNodeModal = () => { 
-  if (nodeForm.value.content || nodeForm.value.imgUrls.length > 0) { 
-    if(confirm('确认关闭？数据将丢失')) closeAddNodeModal() 
-  } else closeAddNodeModal() 
-}
-
-// 删除逻辑 (完全保留)
 const openDeleteCategoryModal = () => { showGrowthMainModal.value = false; showDeleteCategoryModal.value = true }
 const closeDeleteCategoryModal = () => { showDeleteCategoryModal.value = false; deletegrowthId.value = ''; showGrowthMainModal.value = true }
-
 const openDeleteNodeStep1Modal = () => { showGrowthMainModal.value = false; showDeleteNodeStep1Modal.value = true }
 const closeDeleteNodeStep1Modal = () => { showDeleteNodeStep1Modal.value = false; deleteNodeSelectedType.value = ''; showGrowthMainModal.value = true }
 const confirmDeleteNodeStep1 = () => { showDeleteNodeStep1Modal.value = false; showDeleteNodeStep2Modal.value = true }
@@ -512,7 +572,6 @@ const closeDeleteNodeStep2Modal = () => { showDeleteNodeStep2Modal.value = false
 const confirmDeleteNodeStep2 = async () => { await getNodeListBygrowthId(deleteNodeSelectedgrowthId.value); showDeleteNodeStep2Modal.value = false; showDeleteNodeStep3Modal.value = true }
 const closeDeleteNodeStep3Modal = () => { showDeleteNodeStep3Modal.value = false; deleteNodeId.value = ''; showDeleteNodeStep2Modal.value = true }
 
-// 最近事项 (完全保留)
 const closeRecentMainModal = () => showRecentMainModal.value = false
 const openRecentUploadModal = () => { showRecentMainModal.value = false; showRecentUploadModal.value = true }
 const closeRecentUploadModal = () => { showRecentUploadModal.value = false; recentForm.value = { title: '', content: '' }; showRecentMainModal.value = true }
@@ -520,17 +579,13 @@ const confirmCloseRecentUploadModal = () => { if(recentForm.value.title) { if(co
 const openRecentDeleteModal = async () => { await getRecentList(); showRecentMainModal.value = false; showRecentDeleteModal.value = true }
 const closeRecentDeleteModal = () => { showRecentDeleteModal.value = false; deleteRecentId.value = ''; showRecentMainModal.value = true }
 
-// ================= 提交逻辑 (完全保留，仅更名 axios 为 request 并适配 res 结构) =================
+// ================= 提交逻辑 =================
 const submitCategory = async () => {
   if (!categoryForm.value.name.trim() || !categoryForm.value.type) return
   isSubmitting.value = true
   try {
     const res = await request.post('https://xiaolongya.cn/blog/growth/upload', categoryForm.value)
-    if (res.code === 200) {
-      showSuccessFeedback('category')
-      categoryForm.value = { name: '', type: '' }
-      getCategoryList()
-    } else { alert(res.msg || '添加失败') }
+    if (res.code === 200) { showSuccessFeedback('category'); categoryForm.value = { name: '', type: '' }; getCategoryList() } else { alert(res.msg || '添加失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -539,11 +594,7 @@ const submitNode = async () => {
   isSubmitting.value = true
   try {
     const res = await request.post('https://xiaolongya.cn/blog/node/upload', nodeForm.value)
-    if (res.code === 200) {
-      showSuccessFeedback('node')
-      nodeForm.value.content = ''
-      nodeForm.value.imgUrls = []
-    } else { alert(res.msg || '添加失败') }
+    if (res.code === 200) { showSuccessFeedback('node'); nodeForm.value.content = ''; nodeForm.value.imgUrls = [] } else { alert(res.msg || '添加失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -552,10 +603,7 @@ const submitLog = async () => {
   isSubmitting.value = true
   try {
     const res = await request.post('https://xiaolongya.cn/blog/development/upload', logForm.value)
-    if (res.code === 200) {
-      showSuccessFeedback('log')
-      logForm.value = { content: '', imgUrls: [] }
-    } else { alert(res.msg || '发布失败') }
+    if (res.code === 200) { showSuccessFeedback('log'); logForm.value = { content: '', imgUrls: [] } } else { alert(res.msg || '发布失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -564,10 +612,7 @@ const submitRecent = async () => {
   isSubmitting.value = true
   try {
     const res = await request.post('https://xiaolongya.cn/blog/recent/upload', recentForm.value)
-    if (res.code === 200) {
-      showSuccessFeedback('recent')
-      recentForm.value = { title: '', content: '' }
-    } else { alert(res.msg || '发布失败') }
+    if (res.code === 200) { showSuccessFeedback('recent'); recentForm.value = { title: '', content: '' } } else { alert(res.msg || '发布失败') }
   } catch (err) { alert('提交出错') } finally { isSubmitting.value = false }
 }
 
@@ -601,7 +646,7 @@ const submitDeleteRecent = async () => {
   } catch(e) { alert('出错') } finally { isSubmitting.value = false }
 }
 
-// ============ 图片处理 (完全保留) ============
+// ============ 原有图片处理 ============
 const handleImageUpload = async (e) => {
   const file = e.target.files[0]; if (!file) return
   const formData = new FormData(); formData.append('file', file)
@@ -638,9 +683,105 @@ const removeImage = (idx) => logForm.value.imgUrls.splice(idx, 1)
 const handleImgError = (idx) => logForm.value.imgUrls.splice(idx, 1)
 const handleNodeImgError = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 
-// ============ 辅助交互 (完全保留) ============
-const openAddCategoryModal = () => { showGrowthMainModal.value = false; showAddCategoryModal.value = true }
-const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; showSelectTypeModal.value = true }
+// ================= 🌟 技术栈（龙岛武库）专属逻辑 =================
+const showStackModal = ref(false);
+const stackActiveTab = ref('upload'); 
+const stackTypes = ['前端', '后端', '计算机基础'];
+
+const stackForm = ref({
+  name: '',
+  imgUrl: '',
+  type: '前端', 
+  starRating: 0 
+});
+const isStackUploading = ref(false);
+const stackList = ref([]);
+const stackDeleteType = ref('前端'); 
+
+const closeStackModal = () => {
+  showStackModal.value = false;
+  stackForm.value = { name: '', imgUrl: '', type: '前端', starRating: 0 };
+};
+
+// 1. 上传图片到服务器
+const handleStackImgChange = async (e) => {
+  const file = e.target.files[0];
+  if (!file) return;
+  
+  const formData = new FormData();
+  formData.append('file', file);
+  
+  try {
+    const res = await request.post('/upload/image', formData, {
+      headers: { 'Content-Type': 'multipart/form-data' }
+    });
+    if (res.code === 200) {
+      stackForm.value.imgUrl = res.data; 
+      ElMessage.success('图片上传成功');
+    } else {
+      ElMessage.error(res.msg || '图片上传失败');
+    }
+  } catch (err) {
+    ElMessage.error('图片接口请求异常');
+  }
+};
+
+// 2. 提交技术栈
+const submitStack = async () => {
+  if (!stackForm.value.name || !stackForm.value.imgUrl || stackForm.value.starRating === 0) {
+    ElMessage.warning('请填写完整名称、图片，并至少点亮1颗星星！');
+    return;
+  }
+  
+  isStackUploading.value = true;
+  try {
+    const res = await request.post('/stack/upload', stackForm.value);
+    if (res.code === 200) {
+      ElMessage.success(`上传成功!`);
+      stackForm.value = { name: '', imgUrl: '', type: '前端', starRating: 0 }; 
+      fetchStackList(); // 刷新列表
+    } else {
+      ElMessage.error(res.msg || '上传失败');
+    }
+  } catch (err) {
+    ElMessage.error('网络异常，上传失败');
+  } finally {
+    isStackUploading.value = false;
+  }
+};
+
+// 3. 获取并过滤删除列表
+const fetchStackList = async () => {
+  try {
+    const res = await request.get('/stack/list');
+    if (res.code === 200) {
+      stackList.value = res.data || [];
+    }
+  } catch (err) {
+    console.error('获取技术栈失败', err);
+  }
+};
+
+const filteredStackList = computed(() => {
+  return stackList.value.filter(item => item.type === stackDeleteType.value);
+});
+
+// 4. 执行删除操作
+const deleteStack = async (id) => {
+  if (!confirm('确定要将该技术栈从武库中移除吗？')) return;
+  try {
+    const res = await request.post(`/stack/delete?id=${id}`);
+    if (res.code === 200) {
+      ElMessage.success('已成功移除');
+      fetchStackList(); 
+    } else {
+      ElMessage.error(res.msg || '移除失败');
+    }
+  } catch (err) {
+    ElMessage.error('网络异常，移除失败');
+  }
+};
+
 </script>
 
 <style scoped>
@@ -670,10 +811,9 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   margin-bottom: 50px;
 }
 
-/* 放大标题 */
 .admin-title {
   font-family: "Ma Shan Zheng", cursive;
-  font-size: 90px; /* 放大 */
+  font-size: 90px; 
   background: linear-gradient(135deg, #2f5496, #00c0e2);
   -webkit-background-clip: text;
   background-clip: text;
@@ -687,18 +827,16 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   -webkit-background-clip: text;
 }
 
-/* 宫格菜单 */
 .admin-main-content {
   display: flex;
   justify-content: center;
-  gap: 50px; /* 拉大间距 */
+  gap: 50px; 
   flex-wrap: wrap;
 }
 
-/* 放大圆圈 */
 .circle-item {
-  width: 180px; /* 放大 */
-  height: 180px; /* 放大 */
+  width: 180px; 
+  height: 180px; 
 }
 
 .circle-bg {
@@ -733,16 +871,17 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   transform: translateY(-5px);
 }
 
-/* 放大圆圈文字 */
 .circle-text {
   font-weight: bold;
   color: #2f5496;
-  font-size: 28px; /* 放大 */
+  font-size: 28px; 
   z-index: 2;
+  white-space: pre-line;
+  text-align: center;
+  line-height: 1.3;
 }
 :global(.global-wrapper.dark-mode) .circle-text { color: #bfdbfe; }
 
-/* 玻璃光泽 */
 .glass-reflection {
   position: absolute;
   top: 0; left: -50%;
@@ -754,7 +893,7 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 }
 .circle-bg:hover .glass-reflection { transform: skewX(-25deg) translateX(150%); }
 
-/* ================= 弹窗样式优化 ================= */
+/* 弹窗样式 */
 .modal-mask {
   position: fixed;
   top: 0; left: 0;
@@ -769,9 +908,9 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 .modal-container {
   background: rgba(255, 255, 255, 0.95);
   backdrop-filter: blur(10px);
-  padding: 40px; /* 增加内边距 */
+  padding: 40px; 
   border-radius: 24px;
-  width: 550px; /* 稍微加宽 */
+  width: 550px; 
   max-width: 90%;
   box-shadow: 0 10px 30px rgba(0, 0, 0, 0.2);
   border: 1px solid rgba(255, 255, 255, 0.6);
@@ -797,7 +936,7 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 
 .modal-title {
   margin: 0;
-  font-size: 28px; /* 放大 */
+  font-size: 28px; 
   color: #2f5496;
   font-weight: 600;
 }
@@ -805,7 +944,6 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 
 .sub-title { font-size: 0.7em; color: #64748b; margin-left: 10px; }
 
-/* 表单元素 */
 .modal-form-item {
   display: flex;
   flex-direction: column;
@@ -813,18 +951,18 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 }
 
 .modal-form-item label {
-  font-size: 16px; /* 放大 */
+  font-size: 16px; 
   font-weight: 600;
   color: #475569;
 }
 :global(.global-wrapper.dark-mode) .modal-form-item label { color: #94a3b8; }
 
 .modal-input, .modal-select, .modal-textarea {
-  padding: 14px; /* 放大 */
+  padding: 14px; 
   border: 2px solid rgba(47, 84, 150, 0.15);
   border-radius: 12px;
   background: #f8fafc;
-  font-size: 16px; /* 放大 */
+  font-size: 16px; 
   transition: border-color 0.2s;
   color: #334155;
 }
@@ -844,7 +982,6 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   color: #e2e8f0;
 }
 
-/* 按钮组 */
 .modal-btn-group, .growth-btn-group {
   display: flex;
   gap: 15px;
@@ -855,13 +992,13 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 .growth-btn-group { flex-wrap: wrap; justify-content: center; gap: 20px; }
 
 .modal-submit-btn {
-  padding: 12px 30px; /* 放大 */
+  padding: 12px 30px; 
   border-radius: 12px;
   border: none;
   background: linear-gradient(135deg, #2f5496, #00c0e2);
   color: white;
   font-weight: 600;
-  font-size: 18px; /* 放大 */
+  font-size: 18px; 
   cursor: pointer;
   box-shadow: 0 4px 6px rgba(0, 192, 226, 0.2); 
 }
@@ -869,7 +1006,7 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 .modal-submit-btn:disabled { opacity: 0.6; cursor: not-allowed; }
 
 .modal-cancel-btn {
-  padding: 12px 25px; /* 放大 */
+  padding: 12px 25px; 
   border-radius: 12px;
   border: 2px solid #cbd5e1;
   background: transparent;
@@ -880,17 +1017,16 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 }
 .modal-cancel-btn:hover { border-color: #94a3b8; color: #475569; }
 
-/* 菜单式弹窗的大按钮 */
 .action-btn {
-  width: 180px; /* 放大 */
-  height: 130px; /* 放大 */
+  width: 180px; 
+  height: 130px; 
   padding: 10px;
   border-radius: 16px;
   border: none;
   background: linear-gradient(135deg, #2f5496, #00c0e2);
   color: white;
   font-weight: 600;
-  font-size: 20px; /* 放大 */
+  font-size: 20px; 
   cursor: pointer;
   display: flex;
   flex-direction: column;
@@ -899,7 +1035,7 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   gap: 12px;
   box-shadow: 0 4px 10px rgba(0, 192, 226, 0.3);
 }
-.action-btn .btn-icon { font-size: 40px; /* 放大 */ }
+.action-btn .btn-icon { font-size: 40px; }
 
 .danger-mode .modal-title { color: #ef4444; }
 .danger-bg, .action-btn.danger { background: linear-gradient(135deg, #ef4444, #f87171); box-shadow: 0 4px 6px rgba(239, 68, 68, 0.2); }
@@ -914,7 +1050,6 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
   font-size: 16px;
 }
 
-/* Loading */
 .loading-container {
   display: flex;
   flex-direction: column;
@@ -932,7 +1067,6 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 .loading-spinner.large { font-size: 40px; margin-bottom: 15px; color: #00c0e2; }
 @keyframes rotate { from { transform: rotate(0deg); } to { transform: rotate(360deg); } }
 
-/* 图片预览等 */
 .tool-bar { display: flex; gap: 10px; margin-top: 10px; }
 .tool-btn { padding: 8px 16px; background: #eff6ff; color: #2f5496; border-radius: 8px; border: none; font-size: 14px; cursor: pointer; }
 .upload-preview-scroller { display: flex; gap: 10px; overflow-x: auto; padding: 5px; background: rgba(0,0,0,0.03); border-radius: 8px; }
@@ -948,4 +1082,42 @@ const openSelectCategoryTypeModal = () => { showGrowthMainModal.value = false; s
 
 .fade-enter-active, .fade-leave-active { transition: opacity 0.3s; }
 .fade-enter-from, .fade-leave-to { opacity: 0; }
+
+/* ================= 🌟 龙岛武库专属样式 ================= */
+.stack-modal-width { max-width: 550px !important; }
+
+.tab-controls { display: flex; gap: 15px; margin-bottom: 25px; border-bottom: 2px solid #f0f5ff; padding-bottom: 10px; }
+.tab-btn { flex: 1; padding: 10px 0; background: transparent; border: none; font-size: 16px; font-weight: bold; color: #b0bfc6; cursor: pointer; transition: all 0.3s; position: relative; }
+.tab-btn.active { color: #00c0e2; }
+.tab-btn.active::after { content: ''; position: absolute; bottom: -12px; left: 50%; transform: translateX(-50%); width: 40px; height: 3px; background: #00c0e2; border-radius: 3px; }
+
+.fade-in { animation: fadeIn 0.4s ease; }
+@keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
+
+.type-selector { display: flex; gap: 15px; margin-top: 5px; }
+.radio-label { display: flex; align-items: center; gap: 5px; cursor: pointer; color: #2f5496; font-weight: 500; }
+.radio-label input[type="radio"] { accent-color: #00c0e2; transform: scale(1.1); cursor: pointer; }
+
+.file-input { padding: 10px !important; }
+.img-preview-box { margin-top: 15px; width: 80px; height: 80px; border-radius: 15px; border: 2px dashed #00c0e2; padding: 5px; background: #f9fbff; }
+.img-preview-box img { width: 100%; height: 100%; object-fit: contain; border-radius: 10px; }
+
+.star-rating { display: flex; gap: 8px; margin-top: 5px; }
+.star { font-size: 32px; filter: grayscale(100%) opacity(0.3); transition: all 0.2s cubic-bezier(0.175, 0.885, 0.32, 1.275); cursor: pointer; line-height: 1; }
+.star:hover { transform: scale(1.2); }
+.star.active { filter: grayscale(0%) opacity(1); }
+.star-tip { margin: 10px 0 0 0; font-size: 13px; color: #00c0e2; font-weight: bold; }
+
+.stack-list-container { max-height: 350px; overflow-y: auto; padding-right: 5px; }
+.stack-list { display: flex; flex-direction: column; gap: 12px; }
+.stack-item { display: flex; justify-content: space-between; align-items: center; background: #f9fbff; border: 1px solid #eef2f9; padding: 12px 15px; border-radius: 15px; transition: all 0.3s; }
+.stack-item:hover { border-color: #00c0e2; background: white; box-shadow: 0 4px 15px rgba(0, 192, 226, 0.1); }
+.stack-item-info { display: flex; align-items: center; gap: 15px; }
+.stack-item-img { width: 45px; height: 45px; border-radius: 10px; object-fit: contain; background: white; padding: 4px; box-shadow: 0 2px 8px rgba(0,0,0,0.05); }
+.stack-item-text { display: flex; flex-direction: column; gap: 4px; }
+.stack-item-name { font-weight: bold; color: #2f5496; font-size: 15px; }
+.stack-item-stars { font-size: 12px; }
+.delete-icon-btn { background: #ff4d4f; color: white; border: none; padding: 6px 14px; border-radius: 8px; font-weight: bold; font-size: 13px; cursor: pointer; transition: all 0.2s; }
+.delete-icon-btn:hover { background: #ff7875; }
+.empty-tip { text-align: center; color: #b0bfc6; padding: 30px; font-size: 14px; }
 </style>

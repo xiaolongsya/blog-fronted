@@ -8,6 +8,7 @@ import DragonDevelopment from '../views/DragonDevelopment.vue'
 import Admin from '../views/Admin.vue'
 import CategoryDetail from '../views/CategoryDetail.vue'
 import RecentActivity from '../views/RecentActivity.vue'
+import TechCategories from '../views/TechCategories.vue'
 
 const routes = [
   { path: '/', name: 'Home', component: Home },
@@ -46,6 +47,12 @@ const routes = [
     name: 'RecentActivity',
     component: RecentActivity
   },
+  //新增技术栈路由
+  {
+    path: '/tech-categories',
+    name: 'TechCategories',
+    component: TechCategories
+  }
 
 ]
 

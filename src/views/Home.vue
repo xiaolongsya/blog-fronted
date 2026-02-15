@@ -175,13 +175,46 @@
         </div>
       </div>
     </Transition>
+
+    <div class="tech-wrapper unselectable" v-if="techStackList.length > 0">
+      
+      <div class="tech-header">
+        <h3 class="tech-title">小龙的技术栈</h3>
+        <p class="tech-sub hover-scale" @click="router.push('/tech-categories')">点击查看具体分类</p>
+      </div>
+
+      <div 
+        class="tech-scroll-area" 
+        ref="scrollContainer"
+        @scroll="handleScroll"
+        @mouseenter="isPaused = true" 
+        @mouseleave="isPaused = false"
+        @touchstart="isPaused = true"
+        @touchend="isPaused = false"
+      >
+        <div class="tech-scroll-track" ref="scrollTrack">
+          <div class="tech-item" v-for="(item, index) in duplicatedList" :key="index">
+            <img :src="item.imgUrl" class="tech-img" :alt="item.name" />
+            <span class="tech-name">{{ item.name }}</span>
+            <div class="tech-stars">
+              <span v-for="n in item.starRating" :key="'star-' + index + '-' + n" class="star">⭐</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <div class="tech-footer">
+        熟练度上限五颗星
+      </div>
+
+    </div>
+
   </div>
 </template>
 
 <script setup>
-import { ref, nextTick, watch } from 'vue'
+import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue' 
 import { useRouter } from 'vue-router'
-// 1. 引入统一的请求工具
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
@@ -215,12 +248,10 @@ const handleSearch = async () => {
   hasSearched.value = true 
   
   try {
-    // 2. 使用 request.get，并适配 res.code === 200
     const res = await request.get(`/node/listByKeyword`, {
       params: { keyword: keyword.value }
     })
     
-    // 这里的延时是为了保留你原有的搜索动画体感
     setTimeout(() => {
       if (res.code === 200) {
         searchResult.value = res.data || []
@@ -324,8 +355,6 @@ const handleLogin = async () => {
   }
   isLoginLoading.value = true
   try {
-    // 3. 使用 request.post，注意：后端返回的是纯字符串 "登陆成功"
-    // request.js 里的拦截器会直接返回 res.data
     const res = await request.post('/user/login', loginForm.value)
     
     if (res === "登陆成功") {
@@ -341,15 +370,111 @@ const handleLogin = async () => {
     isLoginLoading.value = false 
   }
 }
+
+// ========== 🌟 技术栈逻辑（更新：完美无缝滚动+防卡死） ==========
+const techStackList = ref([])
+const scrollContainer = ref(null)
+let scrollTimer = null
+const isPaused = ref(false)
+
+// 用一个独立的变量记录精确的滚动位置（支持小数，实现丝滑动画）
+let exactScrollTop = 0 
+
+// 强行克隆数据，保证基础列表至少有 10 个以上，才能产生足够的滚动高度
+const duplicatedList = computed(() => {
+  if (techStackList.value.length === 0) return []
+  
+  let baseList = [...techStackList.value]
+  while (baseList.length < 10) {
+    baseList = baseList.concat(techStackList.value)
+  }
+  
+  // 渲染两份以做无缝拼接：上半部分和下半部分完全一样
+  return [...baseList, ...baseList]
+})
+
+const fetchTechStack = async () => {
+  try {
+    const res = await request.get('/stack/list')
+    if (res.code === 200) {
+      techStackList.value = res.data || []
+      
+      nextTick(() => {
+        if (scrollContainer.value) {
+          exactScrollTop = scrollContainer.value.scrollTop
+        }
+        startAutoScroll()
+      })
+    }
+  } catch (err) {
+    console.error('获取技术栈信息失败：', err)
+  }
+}
+
+const startAutoScroll = () => {
+  const step = () => {
+    const el = scrollContainer.value
+    if (!el) return
+
+    if (!isPaused.value) {
+      // 每帧移动 0.5px，60帧大约 30px/s，速度适中且极度平滑
+      exactScrollTop += 0.5 
+      const halfHeight = el.scrollHeight / 2
+      
+      // 向下滚动无缝衔接
+      if (exactScrollTop >= halfHeight) {
+        exactScrollTop -= halfHeight
+      }
+      
+      el.scrollTop = exactScrollTop
+    } else {
+      // 如果暂停了（比如用户在手动滑动），实时把真实的 scrollTop 同步给 exactScrollTop
+      // 防止鼠标移开恢复自动滚动时出现“瞬移闪回”
+      exactScrollTop = el.scrollTop
+    }
+    
+    scrollTimer = requestAnimationFrame(step)
+  }
+  scrollTimer = requestAnimationFrame(step)
+}
+
+// 核心修复：监听原生鼠标滚轮，支持向上和向下无限循环
+const handleScroll = () => {
+  const el = scrollContainer.value
+  if (!el) return
+  
+  // 总高度的一半就是一份 baseList 的高度
+  const halfHeight = el.scrollHeight / 2
+  
+  // 向上滚突破了起点，瞬间切回下半部分，彻底解决往上划卡死的问题
+  if (el.scrollTop <= 0) {
+    el.scrollTop += halfHeight
+    exactScrollTop = el.scrollTop // 手动调整后立刻同步状态
+  } 
+  // 手动向下滚突破了一半，且处于暂停（手动介入）状态下
+  else if (el.scrollTop >= halfHeight && isPaused.value) {
+    el.scrollTop -= halfHeight
+    exactScrollTop = el.scrollTop // 手动调整后立刻同步状态
+  }
+}
+
+onMounted(() => {
+  fetchTechStack()
+})
+
+onUnmounted(() => {
+  if (scrollTimer) cancelAnimationFrame(scrollTimer)
+})
 </script>
 
 <style scoped>
+/* ================== 原有样式 ================== */
 .unselectable { user-select: none; -webkit-user-select: none; cursor: pointer !important; }
 .hover-scale { transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
 .hover-scale:active { transform: scale(0.95); }
 .gpu-layer { will-change: transform, opacity; transform: translateZ(0); }
 
-.home-page { width: 95%; max-width: 1200px; margin: 0 auto; }
+.home-page { width: 95%; max-width: 1200px; margin: 0 auto; position: relative; } 
 .title-avatar-wrap { display: flex; flex-direction: column; align-items: center; padding: 50px 0; gap: 30px; position: relative; }
 
 @media (max-width: 1023px) {
@@ -369,7 +494,6 @@ const handleLogin = async () => {
   filter: drop-shadow(0 2px 5px rgba(0,0,0,0.05)); margin-bottom: 20px;
 }
 
-/* --- 搜索组件 --- */
 .search-container { width: 100%; max-width: 550px; position: relative; z-index: 100; }
 .search-box {
   display: flex; background: rgba(255, 255, 255, 0.8); backdrop-filter: blur(5px); -webkit-backdrop-filter: blur(5px);
@@ -380,34 +504,17 @@ const handleLogin = async () => {
 .search-input { flex: 1; border: none; background: transparent; font-size: 16px; color: #2f5496; outline: none; }
 .search-btn { background: linear-gradient(135deg, #00c0e2, #2f5496); color: white; border: none; width: 42px; height: 42px; border-radius: 50%; cursor: pointer; display: flex; align-items: center; justify-content: center; font-size: 18px; }
 
-/* 搜索结果框外层：设置 max-height 限制高度 */
 .search-results-list {
-  position: absolute; top: 60px; left: 0; width: 100%; 
-  max-height: 60vh; /* 限制为屏幕高度的 60% */
+  position: absolute; top: 60px; left: 0; width: 100%; max-height: 60vh; 
   background: rgba(255, 255, 255, 0.98); border-radius: 20px; box-shadow: 0 15px 50px rgba(0, 0, 0, 0.15);
-  padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); 
-  display: flex; flex-direction: column; 
+  padding: 10px; border: 1px solid rgba(255, 255, 255, 0.8); display: flex; flex-direction: column; 
 }
-
-/* 【新增】内部包裹层：确保 Flex 布局生效，这是滚动的关键 */
-.results-wrapper {
-  display: flex;
-  flex-direction: column;
-  height: 100%; /* 占满父容器 */
-  overflow: hidden; /* 防止自身溢出 */
-}
-
+.results-wrapper { display: flex; flex-direction: column; height: 100%; overflow: hidden; }
 .searching-state { padding: 30px; text-align: center; color: #00c0e2; font-weight: bold; }
 .loading-dots::after { content: '...'; animation: dots 1.5s steps(5, end) infinite; }
 @keyframes dots { 0%, 20% { content: ''; } 40% { content: '.'; } 60% { content: '..'; } 80%, 100% { content: '...'; } }
 
-/* 滚动区域：flex: 1 自动填充剩余空间，overflow-y: auto 允许滚动 */
-.results-scroller { 
-  overflow-y: auto; 
-  flex: 1; 
-  padding-right: 5px; 
-  scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; content-visibility: auto; 
-}
+.results-scroller { overflow-y: auto; flex: 1; padding-right: 5px; scrollbar-width: thin; scrollbar-color: #cbd5e1 transparent; content-visibility: auto; }
 .results-scroller::-webkit-scrollbar { width: 5px; }
 .results-scroller::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 10px; }
 
@@ -417,8 +524,7 @@ const handleLogin = async () => {
 
 .result-card {
   padding: 15px; margin: 8px 0; border-radius: 12px; background: rgba(240, 245, 255, 0.4);
-  cursor: pointer; transition: transform 0.1s ease, background 0.2s ease;
-  position: relative; border: 1px solid transparent; text-align: left;
+  cursor: pointer; transition: transform 0.1s ease, background 0.2s ease; position: relative; border: 1px solid transparent; text-align: left;
 }
 .result-card:active { transform: scale(0.98); background: rgba(240, 245, 255, 0.8); }
 .result-card:hover { background: white; transform: translateX(5px); box-shadow: 0 4px 12px rgba(47, 84, 150, 0.1); border-color: #00c0e2; }
@@ -427,44 +533,33 @@ const handleLogin = async () => {
 .card-title { margin: 0 0 6px 0; font-size: 16px; color: #2f5496; font-weight: bold; padding-right: 80px; }
 .card-preview { margin: 0; font-size: 13px; color: #666; line-height: 1.5; display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
 
-/* 详情模态框 */
 .detail-modal {
-  background: white; width: 90%; max-width: 650px; max-height: 85vh;
-  display: flex; flex-direction: column; padding: 30px; border-radius: 25px; 
+  background: white; width: 90%; max-width: 650px; max-height: 85vh; display: flex; flex-direction: column; padding: 30px; border-radius: 25px; 
   box-shadow: 0 25px 80px rgba(0,0,0,0.2); position: relative; overflow: hidden;
 }
-.detail-header { 
-  border-bottom: 2px solid #f0f5ff; padding-bottom: 15px; margin-bottom: 15px; text-align: left; 
-  position: relative; padding-right: 140px; 
-}
+.detail-header { border-bottom: 2px solid #f0f5ff; padding-bottom: 15px; margin-bottom: 15px; text-align: left; position: relative; padding-right: 140px; }
 .detail-title { color: #2f5496; margin: 0 0 10px 0; font-size: 24px; }
 .detail-meta { font-size: 14px; color: #8fa0b5; }
-
 .view-category-btn {
-  position: absolute; top: 0; right: 0;
-  background: white; border: 1.5px solid #00c0e2; color: #00c0e2;
+  position: absolute; top: 0; right: 0; background: white; border: 1.5px solid #00c0e2; color: #00c0e2;
   padding: 6px 14px; border-radius: 20px; font-size: 13px; font-weight: bold;
   cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.3s ease; z-index: 10;
 }
 .view-category-btn:hover { background: #00c0e2; color: white; box-shadow: 0 4px 10px rgba(0, 192, 226, 0.2); }
-
 .detail-content { flex: 1; overflow-y: auto; text-align: left; line-height: 1.8; color: #333; font-size: 16px; padding-right: 5px; }
 
-/* 骨架屏 */
 .loading-placeholder { padding: 20px 0; }
 .skeleton-line { height: 16px; background: #f0f2f5; margin-bottom: 15px; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; }
 @keyframes pulse { 0% { opacity: 0.6; } 50% { opacity: 1; } 100% { opacity: 0.6; } }
 .content-body { animation: fadeIn 0.3s ease; }
 @keyframes fadeIn { from { opacity: 0; transform: translateY(5px); } to { opacity: 1; transform: translateY(0); } }
 
-/* 主内容区域 */
 .main-content-wrap {
   background: rgba(255, 255, 255, 0.85); border: 1px solid rgba(255,255,255,0.6);
   border-radius: 80px; padding: 80px 40px; margin-bottom: 60px; text-align: center;
   box-shadow: 0 10px 30px rgba(0,0,0,0.02);
 }
 
-/* 其他样式保持不变 */
 .content-header { margin-bottom: 70px; }
 .content-tip-text { font-size: clamp(18px, 4vw, 26px); color: #3d5a80; font-weight: 500; }
 .highlight { color: #2f5496; font-weight: 800; border-bottom: 2px solid #00c0e2; margin: 0 4px; }
@@ -504,4 +599,141 @@ const handleLogin = async () => {
 :deep(.detail-img) { max-width: 100%; border-radius: 10px; margin: 15px 0; box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: block; }
 .loading-spinner { display: inline-block; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
+
+/* ========== 🌟 技术栈侧边栏样式（修改4：全面放大） ========== */
+.tech-wrapper {
+  position: fixed;
+  right: 20px;     
+  top: 50%;
+  transform: translateY(-50%); 
+  width: 150px; /* 默认宽度调大 */
+  height: 70vh;    
+  background: rgba(255, 255, 255, 0.5); 
+  backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 35px; 
+  box-shadow: 0 10px 40px rgba(47, 84, 150, 0.15);
+  z-index: 100;
+  display: flex;
+  flex-direction: column;
+  padding: 20px 0;
+  transition: all 0.3s ease;
+}
+
+/* 电脑端框体进一步变大 */
+@media (min-width: 1024px) {
+  .tech-wrapper {
+    width: 180px; /* 电脑端放得更大 */
+    right: 30px;
+  }
+  .tech-img { width: 65px !important; height: 65px !important; }
+  .tech-name { font-size: 17px !important; }
+  .tech-title { font-size: 20px !important; }
+  .tech-sub { font-size: 14px !important; }
+  .star { font-size: 14px !important; }
+}
+
+@media (max-width: 1023px) {
+  .tech-wrapper {
+    transform: translateY(-50%) scale(0.85); 
+    transform-origin: right center;
+    right: 5px;
+  }
+}
+
+.tech-header {
+  text-align: center;
+  margin-bottom: 15px;
+  padding: 0 10px;
+  flex-shrink: 0;
+}
+.tech-title {
+  font-size: 18px; /* 第一行大字 */
+  font-weight: 900;
+  margin: 0 0 6px 0;
+  background: linear-gradient(135deg, #00c0e2, #2f5496);
+  -webkit-background-clip: text;
+  background-clip: text;
+  color: transparent;
+}
+.tech-sub {
+  font-size: 13px; /* 第二行稍微小一点 */
+  color: #00c0e2;
+  margin: 0;
+  font-weight: bold;
+}
+.tech-sub:hover { text-decoration: underline; }
+
+/* 隐藏原生滚动条，但保留滑动功能，并且增加GPU渲染优化 */
+.tech-scroll-area {
+  flex: 1;
+  width: 100%;
+  overflow-y: auto;
+  overflow-x: hidden;
+  scrollbar-width: none; 
+  -ms-overflow-style: none; 
+  overscroll-behavior: none; /* 防止滚动穿透到主页面 */
+  will-change: scroll-position; /* 提升渲染性能 */
+}
+.tech-scroll-area::-webkit-scrollbar {
+  display: none; 
+}
+
+.tech-scroll-track {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding-bottom: 20px;
+  will-change: transform; /* 独立渲染层，防止触发外层毛玻璃重绘 */
+}
+
+.tech-item {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  margin-bottom: 25px; 
+  flex-shrink: 0;
+}
+
+.tech-img {
+  width: 55px; /* 图片变大 */
+  height: 55px;
+  border-radius: 12px;
+  object-fit: contain; 
+  background: rgba(255, 255, 255, 0.9); 
+  padding: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  transition: transform 0.2s;
+}
+.tech-item:hover .tech-img { transform: scale(1.1); }
+
+.tech-name {
+  font-size: 15px; /* 字体变大 */
+  color: #2f5496;
+  font-weight: 700;
+  margin-top: 8px;
+  text-align: center;
+}
+
+.tech-stars {
+  display: flex;
+  justify-content: center;
+  margin-top: 4px;
+}
+.star {
+  font-size: 12px; 
+  color: #FFD700;  
+  margin: 0 1px;
+  line-height: 1;
+}
+
+.tech-footer {
+  flex-shrink: 0;
+  font-size: 12px;
+  color: #8fa0b5;
+  margin-top: 15px;
+  font-weight: 600;
+  text-align: center;
+  padding: 0 10px;
+}
 </style>
