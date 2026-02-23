@@ -9,7 +9,6 @@ import Admin from '../views/Admin.vue'
 import CategoryDetail from '../views/CategoryDetail.vue'
 import RecentActivity from '../views/RecentActivity.vue'
 import TechCategories from '../views/TechCategories.vue'
-
 const routes = [
   { path: '/', name: 'Home', component: Home },
   { path: '/dragon-den', name: 'DragonDen', component: DragonDen },
@@ -54,6 +53,7 @@ const routes = [
     component: TechCategories
   }
 
+
 ]
 
 const router = createRouter({
@@ -75,6 +75,8 @@ router.beforeEach((to, from, next) => {
   } else {
     next();
   }
+
+
 });
 
 export default router

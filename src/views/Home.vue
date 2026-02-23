@@ -27,7 +27,6 @@
 
           <transition name="fade-slide">
             <div class="search-results-list" v-show="searchResult.length > 0 || hasSearched || isSearching">
-              
               <div v-if="isSearching" class="searching-state">
                 <span class="loading-dots">正在全力搜索中</span>
               </div>
@@ -69,7 +68,7 @@
         <img 
           class="personal-avatar" 
           src="https://xiaolongya.cn/uploads/avatar.jpg" 
-          alt="个人头像"   
+          alt="个人头像"  
           @click="router.push('/dragon-den')" 
         />
       </div>
@@ -106,121 +105,281 @@
       </a>
     </section>
 
-    <Transition name="modal-fast">
-      <div class="login-modal-mask" v-if="showLoginModal" @click="closeLoginModal">
-        <div class="login-modal gpu-layer" @click.stop>
-          <Transition name="fade">
-            <div class="success-overlay" v-if="loginSuccess">
-              <div class="success-content">
-                <div class="check-icon">✔</div>
-                <p>身份核验通过，欢迎归岛</p>
-              </div>
-            </div>
-          </Transition>
+    <!-- 手机端悬浮球：仅在移动端显示 -->
+    <div class="ai-float-ball" @click="toggleAiPanel" v-if="isMobile">
+      <span class="ball-icon">🤖</span>
+    </div>
 
-          <div class="modal-decoration"></div>
-          <div class="modal-header unselectable">
-            <div class="dragon-logo">🐲</div>
-            <h2 class="modal-title">身份核验</h2>
+    <!-- AI 聊天面板：电脑端固定，移动端悬浮展开 -->
+    <div 
+      class="ai-wrapper unselectable"
+      :class="{ 'mobile-open': showAiPanel && isMobile }"
+    >
+      <div class="tech-header">
+        <h3 class="tech-title">龙岛AI助手</h3>
+        <p class="tech-sub">DeepSeek 强力驱动</p>
+        <!-- 移动端关闭按钮（阻止事件冒泡） -->
+        <button 
+          class="ai-close-btn" 
+          @click.stop="toggleAiPanel"
+          v-if="isMobile"
+        >
+          ✕
+        </button>
+      </div>
+
+      <div class="ai-chat-area" ref="chatScroll">
+        <div v-for="(msg, i) in messages" :key="i" :class="['msg-row', msg.role]">
+          <!-- 用户消息：纯文本 -->
+          <div class="msg-bubble" v-if="msg.role === 'user' && msg.content">
+            {{ msg.content }}
           </div>
-          <div class="modal-body">
-            <div class="input-group">
-              <input type="text" v-model="loginForm.username" placeholder="管理员账号" class="modal-input" :disabled="loginSuccess" />
-            </div>
-            <div class="input-group">
-              <input type="password" v-model="loginForm.password" placeholder="通行密码" class="modal-input" :disabled="loginSuccess" />
-            </div>
+          <!-- AI消息：优化版 - 打字时纯文本，结束后渲染Markdown -->
+          <div v-if="msg.role === 'assistant' && msg.displayContent" class="msg-bubble markdown-content">
+            <span v-if="isAiTyping || typewriterTimer">{{ msg.displayContent }}</span>
+            <span v-else v-html="renderMarkdown(msg.displayContent)"></span>
           </div>
-          <div class="modal-btn-group">
-            <button class="modal-login-btn unselectable hover-scale" @click="handleLogin" :disabled="isLoginLoading || loginSuccess">
-              {{ isLoginLoading ? '正在核验...' : '进入龙岛' }}
-            </button>
-            <button class="modal-close-btn unselectable" @click="closeLoginModal" v-if="!loginSuccess">暂不进入</button>
+        </div>
+        
+        <!-- 打字动画：仅在AI正在输入时显示 -->
+        <div v-if="isAiTyping" class="msg-row assistant">
+          <div class="msg-bubble typing-dots">
+            <span></span><span></span><span></span>
           </div>
         </div>
       </div>
-    </Transition>
 
-    <Transition name="modal-fast">
-      <div class="login-modal-mask" v-if="showDetailModal" @click="closeDetailModal">
-        <div class="detail-modal gpu-layer" @click.stop>
-          <div class="modal-decoration"></div>
-          
-          <div class="detail-header">
-            <button 
-              v-if="currentArticle.growthId" 
-              class="view-category-btn hover-scale"
-              @click="goToCategory(currentArticle.growthId, currentArticle.title)"
-            >
-              📂 查看收录合集
-            </button>
-
-            <h2 class="detail-title">{{ currentArticle.title }}</h2>
-            <div class="detail-meta">
-              <span>📅 {{ currentArticle.createTime }}</span>
-            </div>
-          </div>
-          
-          <div class="detail-content scroll-content">
-            <div v-if="isRenderingDetail" class="loading-placeholder">
-              <div class="skeleton-line" style="width: 100%"></div>
-              <div class="skeleton-line" style="width: 80%"></div>
-              <div class="skeleton-line" style="width: 90%"></div>
-              <div class="skeleton-line" style="width: 60%"></div>
-            </div>
-            <div v-else class="content-body" v-html="detailContentHtml"></div>
-          </div>
-          
-          <button class="modal-close-btn" @click="closeDetailModal" style="margin-top: 10px;">关闭阅读</button>
-        </div>
+      <div class="ai-input-area">
+        <input 
+          type="text" 
+          v-model="aiQuery" 
+          @keyup.enter="!isAiThinking && aiCooldown === 0 && handleAiChat()"
+          placeholder="向龙岛助手提问 (限300字)..." 
+          :disabled="isAiThinking"
+          maxlength="300" 
+        />
+        <button 
+          class="ai-send-btn" 
+          @click="handleAiChat" 
+          :disabled="isAiThinking || aiCooldown > 0"
+          :class="{ 'in-cooldown': aiCooldown > 0 }"
+        >
+          <span v-if="!isAiThinking && aiCooldown === 0">🚀</span>
+          <span v-else-if="aiCooldown > 0" class="cooldown-num">{{ aiCooldown }}s</span>
+          <span v-else class="loading-spinner">↻</span>
+        </button>
       </div>
-    </Transition>
+      
+      <div class="word-count-hint" :class="{ 'warning': aiQuery.length >= 280 }">
+        {{ aiQuery.length }}/300
+      </div>
+    </div>
 
     <div class="tech-wrapper unselectable" v-if="techStackList.length > 0">
-      
       <div class="tech-header">
-        <h3 class="tech-title">小龙的技术栈</h3>
+        <h3 class="tech-title">小龙の技术栈</h3>
         <p class="tech-sub hover-scale" @click="router.push('/tech-categories')">点击查看具体分类</p>
       </div>
 
       <div 
         class="tech-scroll-area" 
         ref="scrollContainer"
-        @scroll="handleScroll"
         @mouseenter="isPaused = true" 
         @mouseleave="isPaused = false"
-        @touchstart="isPaused = true"
-        @touchend="isPaused = false"
       >
-        <div class="tech-scroll-track" ref="scrollTrack">
+        <div class="tech-scroll-track">
           <div class="tech-item" v-for="(item, index) in duplicatedList" :key="index">
             <img :src="item.imgUrl" class="tech-img" :alt="item.name" />
             <span class="tech-name">{{ item.name }}</span>
             <div class="tech-stars">
-              <span v-for="n in item.starRating" :key="'star-' + index + '-' + n" class="star">⭐</span>
+              <span v-for="n in item.starRating" :key="n" class="star">⭐</span>
             </div>
           </div>
         </div>
       </div>
-
-      <div class="tech-footer">
-        熟练度上限五颗星
-      </div>
-
+      <div class="tech-footer">熟练度上限五颗星</div>
     </div>
-
   </div>
 </template>
 
 <script setup>
-import { ref, computed, nextTick, watch, onMounted, onUnmounted } from 'vue' 
+import { ref, computed, nextTick, watch, onMounted, onBeforeUnmount } from 'vue' 
 import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
-const router = useRouter()
+// ========== 1. 引入 Markdown 渲染库（零额外依赖） ==========
+import MarkdownIt from 'markdown-it'
+import 'github-markdown-css/github-markdown.css'
 
-// --- 基础配置 ---
+const router = useRouter()
+// 核心：仅用 markdown-it 内置功能，不依赖任何插件
+const md = new MarkdownIt({
+  html: true,         // 支持 HTML 表单/按钮
+  linkify: true,      // 自动识别链接
+  breaks: true,       // 换行符转 <br>
+  typographer: true,  // 优化排版
+  gfm: true           // 开启 GFM，内置表格解析（关键）
+})
+
+// ========== 设备判断：区分手机/电脑端 ==========
+const isMobile = ref(false)
+const checkDevice = () => {
+  isMobile.value = window.innerWidth < 1024
+}
+
+// ========== 手机端AI面板控制 ==========
+const showAiPanel = ref(false)
+const toggleAiPanel = () => {
+  showAiPanel.value = !showAiPanel.value
+  if (showAiPanel.value) {
+    nextTick(() => scrollToBottomDebounced())
+  }
+}
+
+// ========== 性能优化：防抖函数 ==========
+const debounce = (fn, delay = 100) => {
+  let timer = null
+  return (...args) => {
+    clearTimeout(timer)
+    timer = setTimeout(() => fn.apply(this, args), delay)
+  }
+}
+
+// ========== Markdown 渲染函数（核心修复） ==========
+const renderMarkdown = (content) => {
+  if (!content) return ''
+  // 1. 彻底还原所有转义字符，确保Markdown语法生效
+  const formattedContent = content
+    .replace(/\\n/g, '\n')
+    .replace(/\\t/g, '\t')
+    .replace(/\\"/g, '"')
+    .replace(/\\\\/g, '\\')
+  // 2. 简单渲染，避免复杂逻辑导致白屏
+  return md.render(formattedContent)
+}
+
+// ========== 🐲 AI 对话核心逻辑 ==========
+const aiQuery = ref('') 
+const isAiThinking = ref(false) 
+const isAiTyping = ref(false) 
+const chatScroll = ref(null) 
+const aiCooldown = ref(0) 
+let typewriterTimer = null
+
+// 消息结构（初始化避免白屏）
+const messages = ref([
+  { role: 'assistant', content: '', displayContent: '你好！我是龙岛 AI，有什么可以帮你的吗？' }
+])
+
+// 自动滚动到底部
+const scrollToBottom = async () => {
+  await nextTick()
+  if (chatScroll.value) {
+    chatScroll.value.scrollTo({ 
+      top: chatScroll.value.scrollHeight, 
+      behavior: 'smooth' 
+    })
+  }
+}
+const scrollToBottomDebounced = debounce(scrollToBottom, 80)
+
+// 冷却倒计时
+const startCooldown = (seconds) => {
+  aiCooldown.value = seconds
+  const timer = setInterval(() => {
+    aiCooldown.value--
+    if (aiCooldown.value <= 0) clearInterval(timer)
+  }, 1000)
+}
+
+// AI对话核心（极简版，避免白屏）
+const handleAiChat = async () => {
+  if (!aiQuery.value.trim() || isAiThinking.value || aiCooldown.value > 0) return;
+
+  const userContent = aiQuery.value.trim();
+  messages.value.push({ role: 'user', content: userContent, displayContent: userContent });
+  aiQuery.value = '';
+  isAiThinking.value = true;
+  isAiTyping.value = true;
+  await scrollToBottom();
+
+  const aiMessageObj = { role: 'assistant', content: '', displayContent: '' };
+  messages.value.push(aiMessageObj);
+  let fullResponse = '';
+
+  try {
+    const response = await fetch('https://xiaolongya.cn/blog/v1/chat/completions', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json', 'Accept': 'text/event-stream' },
+      body: JSON.stringify({
+        messages: messages.value.slice(0, -1).map(m => ({ role: m.role, content: m.displayContent })),
+        stream: true
+      })
+    });
+
+    if (!response.ok) throw new Error(`HTTP 错误: ${response.status}`);
+
+    const reader = response.body.getReader();
+    const decoder = new TextDecoder('utf-8');
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      const chunk = decoder.decode(value, { stream: true });
+      const lines = chunk.split('\n');
+
+      for (let line of lines) {
+        line = line.trim();
+        if (!line || line === 'data: [DONE]') continue;
+
+        // 极简正则提取文本，避免解析错误
+        const match = line.match(/"content"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+        if (match && match[1]) {
+          const delta = match[1]
+            .replace(/\\n/g, '\n')
+            .replace(/\\"/g, '"')
+            .replace(/\\\\/g, '\\');
+
+          if (delta) {
+            isAiTyping.value = false;
+            fullResponse += delta;
+            // 实时更新，强制响应式
+            setTimeout(() => {
+              aiMessageObj.displayContent = fullResponse;
+              messages.value = [...messages.value];
+              scrollToBottomDebounced();
+            }, 0);
+          }
+        }
+      }
+    }
+
+    if (!fullResponse) {
+      setTimeout(() => {
+        aiMessageObj.displayContent = "你可以问我关于小龙的开源项目、技术栈相关的问题～";
+        messages.value = [...messages.value];
+        scrollToBottomDebounced();
+      }, 0);
+    }
+
+  } catch (e) {
+    console.error('AI 失败:', e);
+    setTimeout(() => {
+      aiMessageObj.displayContent = `⚠️ 加载失败：${e.message}`;
+      isAiTyping.value = false;
+      messages.value = [...messages.value];
+      scrollToBottomDebounced();
+    }, 0);
+  } finally {
+    isAiThinking.value = false;
+    isAiTyping.value = false;
+    startCooldown(5);
+  }
+};
+
+// ========== 其他辅助逻辑（保留核心，简化避免白屏） ==========
 const circleList = [
   { content: "龙岛发展\n(开源项目)", path: '/dragon-development' },
   { content: "龙岛聚会\n(评论社区)", path: '/comment-area' },
@@ -228,13 +387,9 @@ const circleList = [
 ];
 
 const handleCircleClick = async (item) => {
-  if (item.path) {
-    await nextTick()
-    router.push(item.path)
-  }
+  if (item.path) await router.push(item.path)
 }
 
-// --- 搜索逻辑 ---
 const keyword = ref('')
 const searchResult = ref([])
 const isSearching = ref(false)
@@ -242,26 +397,16 @@ const hasSearched = ref(false)
 
 const handleSearch = async () => {
   if (!keyword.value.trim()) return
-  
   searchResult.value = []
   isSearching.value = true
   hasSearched.value = true 
-  
   try {
-    const res = await request.get(`/node/listByKeyword`, {
-      params: { keyword: keyword.value }
-    })
-    
+    const res = await request.get(`/node/listByKeyword`, { params: { keyword: keyword.value } })
     setTimeout(() => {
-      if (res.code === 200) {
-        searchResult.value = res.data || []
-      }
+      if (res.code === 200) searchResult.value = res.data || []
       isSearching.value = false
     }, 300)
-  } catch (error) {
-    console.error("搜索失败", error)
-    isSearching.value = false
-  }
+  } catch (error) { isSearching.value = false }
 }
 
 const clearSearch = () => {
@@ -271,72 +416,46 @@ const clearSearch = () => {
   isSearching.value = false
 }
 
-// --- 详情弹窗逻辑 ---
 const showDetailModal = ref(false)
 const currentArticle = ref({})
 const isRenderingDetail = ref(true) 
 const detailContentHtml = ref('')
 
 watch(showDetailModal, (newVal) => {
-  if (newVal) {
-    document.body.style.overflow = 'hidden'
-  } else {
-    document.body.style.overflow = ''
-  }
+  document.body.style.overflow = newVal ? 'hidden' : ''
 })
+
+const parseContentDetail = (content) => {
+  if (!content) return ''
+  const mdText = content.replace(/\[IMAGE:(.*?)\]/g, '![插图]($1)').replace(/\\n/g, '\n')
+  return md.render(mdText)
+}
 
 const openDetailModal = (item) => {
   currentArticle.value = item
   isRenderingDetail.value = true
   detailContentHtml.value = '' 
   showDetailModal.value = true
-  
-  requestAnimationFrame(() => {
-    setTimeout(() => {
-      detailContentHtml.value = parseContentDetail(item.content)
-      isRenderingDetail.value = false
-    }, 200)
-  })
+  setTimeout(() => {
+    detailContentHtml.value = parseContentDetail(item.content)
+    isRenderingDetail.value = false
+  }, 200)
 }
 
-const closeDetailModal = () => {
-  showDetailModal.value = false
-}
+const closeDetailModal = () => { showDetailModal.value = false }
 
 const goToCategory = async (growthId, categoryName) => {
   if (!growthId) return
   closeDetailModal()
-  await nextTick()
-  router.push({
-    path: '/category-detail',
-    query: { 
-      id: growthId,
-      name: categoryName || '关联分类' 
-    }
-  })
+  await router.push({ path: '/category-detail', query: { id: growthId, name: categoryName || '关联分类' } })
 }
-
-// --- 内容解析工具 ---
-const formatTimeSimple = (timeStr) => timeStr ? timeStr.split(' ')[0] : ''
 
 const parseContentPreview = (content) => {
   if (!content) return ''
-  let text = content.replace(/\[IMAGE:.*?\]/g, '')
-  text = text.replace(/\n/g, ' ')
+  let text = content.replace(/\[IMAGE:.*?\]/g, '').replace(/[#*`~>-]/g, '').replace(/\n/g, ' ')
   return text.length > 80 ? text.substring(0, 80) + '...' : text
 }
 
-const parseContentDetail = (content) => {
-  if (!content) return ''
-  let html = content.replace(/</g, "&lt;").replace(/>/g, "&gt;")
-  html = html.replace(/\[IMAGE:(.*?)\]/g, (match, url) => {
-    return `<img src="${url}" class="detail-img" alt="插图" loading="lazy" />`
-  })
-  html = html.replace(/\n/g, '<br/>')
-  return html
-}
-
-// --- 登录逻辑 ---
 const showLoginModal = ref(false)
 const loginForm = ref({ username: '', password: '' })
 const isLoginLoading = ref(false)
@@ -356,119 +475,187 @@ const handleLogin = async () => {
   isLoginLoading.value = true
   try {
     const res = await request.post('/user/login', loginForm.value)
-    
     if (res === "登陆成功") {
       loginSuccess.value = true;
       sessionStorage.setItem('isAdminLogin', 'true'); 
       setTimeout(() => { router.push('/admin') }, 1500);
-    } else { 
-      ElMessage.error('核验未通过'); 
-    }
-  } catch (e) { 
-    console.error(e) 
-  } finally { 
-    isLoginLoading.value = false 
-  }
+    } else { ElMessage.error('核验未通过'); }
+  } catch (e) { console.error(e) }
+  finally { isLoginLoading.value = false }
 }
 
-// ========== 🌟 技术栈逻辑（更新：完美无缝滚动+防卡死） ==========
 const techStackList = ref([])
 const scrollContainer = ref(null)
 let scrollTimer = null
 const isPaused = ref(false)
+let exactScrollPos = 0 
 
-// 用一个独立的变量记录精确的滚动位置（支持小数，实现丝滑动画）
-let exactScrollTop = 0 
-
-// 强行克隆数据，保证基础列表至少有 10 个以上，才能产生足够的滚动高度
 const duplicatedList = computed(() => {
   if (techStackList.value.length === 0) return []
-  
   let baseList = [...techStackList.value]
-  while (baseList.length < 10) {
-    baseList = baseList.concat(techStackList.value)
-  }
-  
-  // 渲染两份以做无缝拼接：上半部分和下半部分完全一样
+  while (baseList.length < 10) baseList = baseList.concat(techStackList.value)
   return [...baseList, ...baseList]
 })
+
+const startAutoScroll = () => {
+  const step = () => {
+    const el = scrollContainer.value
+    if (!el) return
+    const isMobileDevice = window.innerWidth < 1024
+    if (!isPaused.value) {
+      exactScrollPos += 0.5 
+      if (isMobileDevice) {
+        const halfWidth = el.scrollWidth / 2
+        if (exactScrollPos >= halfWidth) exactScrollPos -= halfWidth
+        el.scrollLeft = exactScrollPos
+      } else {
+        const halfHeight = el.scrollHeight / 2
+        if (exactScrollPos >= halfHeight) exactScrollPos -= halfHeight
+        el.scrollTop = exactScrollPos
+      }
+    } else {
+      exactScrollPos = isMobileDevice ? el.scrollLeft : el.scrollTop
+    }
+    scrollTimer = requestAnimationFrame(step)
+  }
+  scrollTimer = requestAnimationFrame(step)
+}
 
 const fetchTechStack = async () => {
   try {
     const res = await request.get('/stack/list')
     if (res.code === 200) {
       techStackList.value = res.data || []
-      
-      nextTick(() => {
-        if (scrollContainer.value) {
-          exactScrollTop = scrollContainer.value.scrollTop
-        }
-        startAutoScroll()
-      })
+      nextTick(() => { if (scrollContainer.value) startAutoScroll() })
     }
-  } catch (err) {
-    console.error('获取技术栈信息失败：', err)
-  }
+  } catch (err) { console.error(err) }
 }
 
-const startAutoScroll = () => {
-  const step = () => {
-    const el = scrollContainer.value
-    if (!el) return
-
-    if (!isPaused.value) {
-      // 每帧移动 0.5px，60帧大约 30px/s，速度适中且极度平滑
-      exactScrollTop += 0.5 
-      const halfHeight = el.scrollHeight / 2
-      
-      // 向下滚动无缝衔接
-      if (exactScrollTop >= halfHeight) {
-        exactScrollTop -= halfHeight
-      }
-      
-      el.scrollTop = exactScrollTop
-    } else {
-      // 如果暂停了（比如用户在手动滑动），实时把真实的 scrollTop 同步给 exactScrollTop
-      // 防止鼠标移开恢复自动滚动时出现“瞬移闪回”
-      exactScrollTop = el.scrollTop
-    }
-    
-    scrollTimer = requestAnimationFrame(step)
-  }
-  scrollTimer = requestAnimationFrame(step)
+const formatTimeSimple = (timeStr) => {
+  if (!timeStr) return ''
+  const date = new Date(timeStr)
+  if (isNaN(date.getTime())) return timeStr
+  return date.toLocaleString('zh-CN', {
+    year: 'numeric', month: '2-digit', day: '2-digit', hour: '2-digit', minute: '2-digit'
+  }).replace(/\//g, '-')
 }
 
-// 核心修复：监听原生鼠标滚轮，支持向上和向下无限循环
-const handleScroll = () => {
-  const el = scrollContainer.value
-  if (!el) return
-  
-  // 总高度的一半就是一份 baseList 的高度
-  const halfHeight = el.scrollHeight / 2
-  
-  // 向上滚突破了起点，瞬间切回下半部分，彻底解决往上划卡死的问题
-  if (el.scrollTop <= 0) {
-    el.scrollTop += halfHeight
-    exactScrollTop = el.scrollTop // 手动调整后立刻同步状态
-  } 
-  // 手动向下滚突破了一半，且处于暂停（手动介入）状态下
-  else if (el.scrollTop >= halfHeight && isPaused.value) {
-    el.scrollTop -= halfHeight
-    exactScrollTop = el.scrollTop // 手动调整后立刻同步状态
-  }
-}
-
+// ========== 生命周期（极简，避免内存泄漏） ==========
 onMounted(() => {
+  checkDevice()
+  window.addEventListener('resize', checkDevice)
   fetchTechStack()
 })
 
-onUnmounted(() => {
+onBeforeUnmount(() => {
+  if (typewriterTimer) clearInterval(typewriterTimer)
   if (scrollTimer) cancelAnimationFrame(scrollTimer)
+  window.removeEventListener('resize', checkDevice)
 })
 </script>
 
+<!-- 关键：表格/Markdown 样式，避免渲染异常 -->
 <style scoped>
-/* ================== 原有样式 ================== */
+.markdown-content {
+  line-height: 1.6;
+  font-size: 14px;
+  padding: 8px;
+}
+
+/* 表格核心样式 */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+/* 代码块样式 */
+.markdown-content pre {
+  background: #f5f5f5;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdown-content code {
+  background: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: monospace;
+}
+
+/* Markdown 通用样式 */
+.markdown-content {
+  line-height: 1.6;
+  font-size: 14px;
+}
+
+/* 表格样式（核心） */
+.markdown-content table {
+  width: 100%;
+  border-collapse: collapse;
+  margin: 16px 0;
+}
+
+.markdown-content th,
+.markdown-content td {
+  padding: 8px 12px;
+  border: 1px solid #ddd;
+  text-align: left;
+}
+
+.markdown-content th {
+  background-color: #f5f5f5;
+  font-weight: 600;
+}
+
+.markdown-content tr:nth-child(even) {
+  background-color: #f9f9f9;
+}
+
+/* 代码块样式 */
+.markdown-content pre {
+  background-color: #f5f5f5;
+  padding: 12px;
+  border-radius: 8px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+
+.markdown-content code {
+  background-color: #f5f5f5;
+  padding: 2px 4px;
+  border-radius: 4px;
+  font-family: Consolas, Monaco, monospace;
+}
+
+/* HTML 表单样式（支持input/button等） */
+.markdown-content input,
+.markdown-content button {
+  padding: 4px 8px;
+  border: 1px solid #ddd;
+  border-radius: 4px;
+  margin: 2px;
+}
+
+.markdown-content button {
+  background-color: #409eff;
+  color: white;
+  border-color: #409eff;
+  cursor: pointer;
+}
+</style>
+
+<style scoped>
+/* ================== 原有通用样式 ================== */
 .unselectable { user-select: none; -webkit-user-select: none; cursor: pointer !important; }
 .hover-scale { transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
 .hover-scale:active { transform: scale(0.95); }
@@ -477,10 +664,6 @@ onUnmounted(() => {
 .home-page { width: 95%; max-width: 1200px; margin: 0 auto; position: relative; } 
 .title-avatar-wrap { display: flex; flex-direction: column; align-items: center; padding: 50px 0; gap: 30px; position: relative; }
 
-@media (max-width: 1023px) {
-  .side-profile { display: flex; flex-direction: column; align-items: center; gap: 20px; }
-  .admin-entry { display: flex; justify-content: center; width: 100%; }
-}
 @media (min-width: 1024px) {
   .title-avatar-wrap { flex-direction: row; justify-content: space-between; min-height: 160px; align-items: flex-start; }
   .side-nav, .side-profile { flex: 1; display: flex; align-items: center; margin-top: 20px; }
@@ -546,7 +729,7 @@ onUnmounted(() => {
   cursor: pointer; display: flex; align-items: center; gap: 5px; transition: all 0.3s ease; z-index: 10;
 }
 .view-category-btn:hover { background: #00c0e2; color: white; box-shadow: 0 4px 10px rgba(0, 192, 226, 0.2); }
-.detail-content { flex: 1; overflow-y: auto; text-align: left; line-height: 1.8; color: #333; font-size: 16px; padding-right: 5px; }
+.detail-content { flex: 1; overflow-y: auto; text-align: left; padding-right: 5px; }
 
 .loading-placeholder { padding: 20px 0; }
 .skeleton-line { height: 16px; background: #f0f2f5; margin-bottom: 15px; border-radius: 4px; animation: pulse 1.5s infinite ease-in-out; }
@@ -596,17 +779,47 @@ onUnmounted(() => {
 .personal-avatar:hover { transform: scale(1.1) rotate(5deg); }
 .beian-link { font-size: 13px; color: #cbd5e1; text-decoration: none; transition: color 0.3s; }
 .beian-link:hover { color: #2f5496; }
-:deep(.detail-img) { max-width: 100%; border-radius: 10px; margin: 15px 0; box-shadow: 0 5px 15px rgba(0,0,0,0.1); display: block; }
 .loading-spinner { display: inline-block; animation: spin 1s linear infinite; }
 @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
 
-/* ========== 🌟 技术栈侧边栏样式（修改4：全面放大） ========== */
+/* ========== 🌟 搜索详情页 Markdown 渲染样式 ========== */
+.markdown-body {
+  background-color: transparent !important;
+  font-family: inherit !important;
+  font-size: 16px;
+  line-height: 1.8;
+  color: #333 !important;
+}
+:deep(.markdown-body img) { 
+  max-width: 100%; 
+  border-radius: 10px; 
+  margin: 15px 0; 
+  box-shadow: 0 5px 15px rgba(0,0,0,0.1); 
+  display: block; 
+}
+:deep(.markdown-body a) { color: #00c0e2 !important; text-decoration: none; font-weight: bold; }
+:deep(.markdown-body a:hover) { text-decoration: underline; }
+:deep(.markdown-body p) { margin-bottom: 1em; }
+:deep(.markdown-body h1), :deep(.markdown-body h2), :deep(.markdown-body h3) { color: #2f5496 !important; border-bottom: 1px solid rgba(47, 84, 150, 0.1) !important; padding-bottom: 0.3em; }
+:deep(.markdown-body blockquote) {
+  border-left: 4px solid #00c0e2 !important;
+  background: rgba(0, 192, 226, 0.05) !important;
+  padding: 10px 15px !important;
+  color: #555 !important;
+  margin: 15px 0 !important;
+  border-radius: 0 8px 8px 0;
+}
+:deep(.markdown-body pre) { background-color: #f6f8fa; border-radius: 8px; padding: 16px; overflow-x: auto; }
+:deep(.markdown-body code) { color: #d63384 !important; background-color: rgba(214, 51, 132, 0.1); padding: 2px 5px; border-radius: 4px; }
+:deep(.markdown-body pre code) { color: #333 !important; background-color: transparent; }
+
+/* ========== 🌟 技术栈通用基础样式 ========== */
 .tech-wrapper {
   position: fixed;
   right: 20px;     
   top: 50%;
   transform: translateY(-50%); 
-  width: 150px; /* 默认宽度调大 */
+  width: 150px; 
   height: 70vh;    
   background: rgba(255, 255, 255, 0.5); 
   backdrop-filter: blur(15px); -webkit-backdrop-filter: blur(15px);
@@ -620,12 +833,32 @@ onUnmounted(() => {
   transition: all 0.3s ease;
 }
 
-/* 电脑端框体进一步变大 */
+.tech-header { text-align: center; margin-bottom: 15px; padding: 0 10px; flex-shrink: 0; }
+.tech-title { font-size: 18px; font-weight: 900; margin: 0 0 6px 0; background: linear-gradient(135deg, #00c0e2, #2f5496); -webkit-background-clip: text; background-clip: text; color: transparent; }
+.tech-sub { font-size: 13px; color: #00c0e2; margin: 0; font-weight: bold; }
+.tech-sub:hover { text-decoration: underline; }
+
+.tech-scroll-area {
+  flex: 1; width: 100%; overflow-y: auto; overflow-x: hidden;
+  scrollbar-width: none; -ms-overflow-style: none; 
+  overscroll-behavior: none; will-change: scroll-position;
+}
+.tech-scroll-area::-webkit-scrollbar { display: none; }
+
+.tech-scroll-track { display: flex; flex-direction: column; align-items: center; padding-bottom: 20px; will-change: transform; }
+.tech-item { display: flex; flex-direction: column; align-items: center; margin-bottom: 25px; flex-shrink: 0; }
+.tech-img { width: 55px; height: 55px; border-radius: 12px; object-fit: contain; background: rgba(255, 255, 255, 0.9); padding: 6px; box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08); transition: transform 0.2s; }
+.tech-item:hover .tech-img { transform: scale(1.1); }
+.tech-name { font-size: 15px; color: #2f5496; font-weight: 700; margin-top: 8px; text-align: center; }
+
+.tech-stars { display: flex; justify-content: center; margin-top: 4px; }
+.star { font-size: 12px; color: #FFD700; margin: 0 1px; line-height: 1; }
+
+.tech-footer { flex-shrink: 0; font-size: 12px; color: #8fa0b5; margin-top: 15px; font-weight: 600; text-align: center; padding: 0 10px; }
+
+/* ================== 💻 电脑端：保留大框体垂直显示 ================== */
 @media (min-width: 1024px) {
-  .tech-wrapper {
-    width: 180px; /* 电脑端放得更大 */
-    right: 30px;
-  }
+  .tech-wrapper { width: 180px; right: 30px; }
   .tech-img { width: 65px !important; height: 65px !important; }
   .tech-name { font-size: 17px !important; }
   .tech-title { font-size: 20px !important; }
@@ -633,107 +866,327 @@ onUnmounted(() => {
   .star { font-size: 14px !important; }
 }
 
+/* ================== 📱 手机端：技术栈顶部横向显示 ================== */
 @media (max-width: 1023px) {
+  .side-profile { display: flex; flex-direction: column; align-items: center; gap: 20px; }
+  .admin-entry { display: flex; justify-content: center; width: 100%; }
+
+  /* 开启页面纵向 Flex 布局，使 order 属性生效 */
+  .home-page { display: flex; flex-direction: column; }
+
+  /* 技术栈外壳：取消悬浮，置顶，变横向 */
   .tech-wrapper {
-    transform: translateY(-50%) scale(0.85); 
-    transform-origin: right center;
-    right: 5px;
+    position: static;          
+    transform: none;           
+    width: 100%;               
+    height: auto;
+    flex-direction: row;       
+    align-items: center;
+    order: -1;                 /* 核心魔法：将其视觉顺序提至最前（网页顶部） */
+    margin: 10px 0 20px 0;
+    padding: 10px 15px;
+    box-sizing: border-box;
+  }
+
+  .tech-header {
+    margin-bottom: 0;
+    margin-right: 15px;
+    text-align: left;
+    flex-shrink: 0;
+  }
+
+  /* 滚动可视区：改用横向滚动 */
+  .tech-scroll-area {
+    overflow-y: hidden;
+    overflow-x: auto;
+    display: flex;
+    align-items: center;
+  }
+
+  /* 滚动轨道：横排 */
+  .tech-scroll-track {
+    flex-direction: row;
+    padding-bottom: 0;
+    padding-right: 20px;
+    align-items: center;
+  }
+
+  /* 单个图标项：取消底部间距，改为右侧间距 */
+  .tech-item { margin-bottom: 0; margin-right: 25px; }
+
+  /* 隐藏底部文字 */
+  .tech-footer { display: none; }
+}
+
+/* ========== 🐲 AI 对话框样式 (终极优化版) ========== */
+/* 🖥️ 电脑端 AI 面板：强制固定在左侧，不受任何干扰 */
+.ai-wrapper {
+  position: fixed !important; /* 强制固定定位，优先级最高 */
+  left: 20px !important;     /* 固定在左侧 */
+  top: 50% !important;       /* 垂直居中 */
+  transform: translateY(-50%) !important; /* 精准垂直居中 */
+  width: 280px;
+  height: 70vh;
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(15px);
+  border: 1px solid rgba(255, 255, 255, 0.8);
+  border-radius: 25px;
+  box-shadow: 0 10px 40px rgba(0,0,0,0.1);
+  display: flex;
+  flex-direction: column;
+  z-index: 9999 !important; /* 强制置顶，不被其他元素遮挡 */
+  /* 以下是防干扰属性 */
+  margin: 0 !important;      /* 清除默认边距 */
+  float: none !important;    /* 清除浮动 */
+  clear: both !important;    /* 清除清除浮动 */
+  box-sizing: border-box !important; /* 盒模型不影响尺寸 */
+}
+
+/* 手机端默认隐藏，仅显示悬浮球（强制覆盖） */
+@media (max-width: 1023px) {
+  .ai-wrapper {
+    position: fixed !important;
+    right: -100% !important; /* 藏在屏幕外 */
+    top: 0 !important;
+    left: auto !important; /* 清除电脑端的 left 定位 */
+    transform: none !important; /* 清除电脑端的 translateY */
+    width: 85% !important;
+    height: 100vh !important;
+    z-index: 1000 !important;
+    transition: right 0.3s ease !important;
+    will-change: transform !important; /* 告诉浏览器优化动画 */
+    contain: layout style paint !important; /* 限制重绘范围 */
+    -webkit-overflow-scrolling: touch !important; /* iOS弹性滚动 */
+  }
+  .ai-wrapper.mobile-open {
+    right: 0 !important; /* 点开才出来 */
+  }
+  /* 手机端聊天区域优化 */
+  .ai-chat-area {
+    overflow-anchor: auto !important; /* 防止滚动跳动 */
+    -webkit-overflow-scrolling: touch !important;
   }
 }
 
-.tech-header {
-  text-align: center;
-  margin-bottom: 15px;
-  padding: 0 10px;
-  flex-shrink: 0;
-}
-.tech-title {
-  font-size: 18px; /* 第一行大字 */
-  font-weight: 900;
-  margin: 0 0 6px 0;
+/* 手机端AI悬浮球 */
+.ai-float-ball {
+  position: fixed;
+  right: 20px;
+  bottom: 20px;
+  width: 60px;
+  height: 60px;
   background: linear-gradient(135deg, #00c0e2, #2f5496);
-  -webkit-background-clip: text;
-  background-clip: text;
-  color: transparent;
-}
-.tech-sub {
-  font-size: 13px; /* 第二行稍微小一点 */
-  color: #00c0e2;
-  margin: 0;
-  font-weight: bold;
-}
-.tech-sub:hover { text-decoration: underline; }
-
-/* 隐藏原生滚动条，但保留滑动功能，并且增加GPU渲染优化 */
-.tech-scroll-area {
-  flex: 1;
-  width: 100%;
-  overflow-y: auto;
-  overflow-x: hidden;
-  scrollbar-width: none; 
-  -ms-overflow-style: none; 
-  overscroll-behavior: none; /* 防止滚动穿透到主页面 */
-  will-change: scroll-position; /* 提升渲染性能 */
-}
-.tech-scroll-area::-webkit-scrollbar {
-  display: none; 
-}
-
-.tech-scroll-track {
+  border-radius: 50%;
   display: flex;
-  flex-direction: column;
   align-items: center;
-  padding-bottom: 20px;
-  will-change: transform; /* 独立渲染层，防止触发外层毛玻璃重绘 */
-}
-
-.tech-item {
-  display: flex;
-  flex-direction: column;
-  align-items: center;
-  margin-bottom: 25px; 
-  flex-shrink: 0;
-}
-
-.tech-img {
-  width: 55px; /* 图片变大 */
-  height: 55px;
-  border-radius: 12px;
-  object-fit: contain; 
-  background: rgba(255, 255, 255, 0.9); 
-  padding: 6px;
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
-  transition: transform 0.2s;
-}
-.tech-item:hover .tech-img { transform: scale(1.1); }
-
-.tech-name {
-  font-size: 15px; /* 字体变大 */
-  color: #2f5496;
-  font-weight: 700;
-  margin-top: 8px;
-  text-align: center;
-}
-
-.tech-stars {
-  display: flex;
   justify-content: center;
-  margin-top: 4px;
-}
-.star {
-  font-size: 12px; 
-  color: #FFD700;  
-  margin: 0 1px;
-  line-height: 1;
+  box-shadow: 0 5px 20px rgba(0, 192, 226, 0.3);
+  z-index: 999;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  /* 硬件加速 */
+  transform: translateZ(0);
 }
 
-.tech-footer {
-  flex-shrink: 0;
+.ai-float-ball:hover {
+  transform: scale(1.1);
+  box-shadow: 0 8px 25px rgba(0, 192, 226, 0.4);
+}
+
+.ball-icon {
+  font-size: 24px;
+}
+
+/* 手机端AI面板关闭按钮 */
+.ai-close-btn {
+  position: absolute;
+  top: 15px;
+  right: 15px;
+  background: transparent;
+  border: none;
+  font-size: 18px;
+  color: #8fa0b5;
+  cursor: pointer;
+  width: 30px;
+  height: 30px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 101;
+}
+
+.ai-close-btn:hover {
+  color: #ff4d4f;
+}
+
+/* AI聊天区域样式 */
+.ai-chat-area {
+  flex: 1;
+  overflow-y: auto;
+  padding: 15px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  scrollbar-width: none;
+  /* 性能优化 */
+  contain: layout paint;
+}
+.ai-chat-area::-webkit-scrollbar { display: none; }
+
+/* 消息气泡样式 */
+.msg-row { display: flex; width: 100%; margin: 2px 0; }
+.msg-row.user { justify-content: flex-end; }
+.msg-row.assistant { justify-content: flex-start; }
+.msg-bubble {
+  max-width: 85%;
+  padding: 8px 12px;
+  border-radius: 15px;
+  font-size: 13px;
+  line-height: 1.5;
+  word-break: break-word;
+  box-shadow: 0 2px 5px rgba(0,0,0,0.02);
+  /* 性能优化 */
+  will-change: contents;
+}
+.user .msg-bubble { 
+  background: #00c0e2; 
+  color: white; 
+  border-bottom-right-radius: 2px; 
+}
+.assistant .msg-bubble { 
+  background: white; 
+  color: #333; 
+  border: 1px solid #eee; 
+  border-bottom-left-radius: 2px;
+  white-space: pre-wrap;
+}
+
+/* AI消息Markdown样式 */
+.markdown-content {
+  line-height: 1.6;
+  color: #333;
+}
+.markdown-content :deep(p) {
+  margin: 0 0 8px 0;
+}
+.markdown-content :deep(strong) {
+  font-weight: 600;
+  color: #222;
+}
+.markdown-content :deep(em) {
+  color: #555;
+}
+.markdown-content :deep(ul), 
+.markdown-content :deep(ol) {
+  margin: 8px 0;
+  padding-left: 20px;
+}
+.markdown-content :deep(li) {
+  margin: 4px 0;
+}
+.markdown-content :deep(a) {
+  color: #0366d6;
+  text-decoration: none;
+}
+.markdown-content :deep(a:hover) {
+  text-decoration: underline;
+}
+.markdown-content :deep(code) {
+  padding: 2px 4px;
+  background-color: #f6f8fa;
+  border-radius: 3px;
+  font-size: 0.9em;
+}
+.markdown-content :deep(pre) {
+  padding: 16px;
+  background-color: #f6f8fa;
+  border-radius: 6px;
+  overflow-x: auto;
+  margin: 8px 0;
+}
+.markdown-content :deep(h1),
+.markdown-content :deep(h2),
+.markdown-content :deep(h3) {
+  margin: 16px 0 8px 0;
+  font-weight: 600;
+}
+.markdown-content :deep(h1) {
+  font-size: 1.5em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 4px;
+}
+.markdown-content :deep(h2) {
+  font-size: 1.3em;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 4px;
+}
+.markdown-content :deep(img) {
+  max-width: 100%;
+  border-radius: 4px;
+  margin: 8px 0;
+}
+
+/* 打字动画样式 */
+.typing-dots {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 4px;
+  padding: 8px 15px;
+}
+.typing-dots span {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: #8fa0b5;
+  animation: typing 1.4s infinite ease-in-out both;
+}
+.typing-dots span:nth-child(1) { animation-delay: -0.32s; }
+.typing-dots span:nth-child(2) { animation-delay: -0.16s; }
+@keyframes typing {
+  0%, 80%, 100% { transform: scale(0); }
+  40% { transform: scale(1); }
+}
+
+/* 输入区样式 */
+.ai-input-area {
+  padding: 10px;
+  display: flex;
+  gap: 8px;
+  border-top: 1px solid rgba(0,0,0,0.05);
+}
+.ai-input-area input {
+  flex: 1;
+  border: 1px solid #eee;
+  border-radius: 10px;
+  padding: 8px 12px;
+  font-size: 13px;
+  outline: none;
+}
+.ai-send-btn {
+  background: #00c0e2;
+  color: white;
+  border: none;
+  border-radius: 10px;
+  width: 40px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: all 0.2s;
+}
+.ai-send-btn:hover:not(.in-cooldown) { background: #2f5496; }
+.ai-send-btn.in-cooldown { background: #cbd5e1; cursor: not-allowed; }
+
+/* 字数提示 */
+.word-count-hint {
   font-size: 12px;
   color: #8fa0b5;
-  margin-top: 15px;
-  font-weight: 600;
-  text-align: center;
-  padding: 0 10px;
+  padding: 0 10px 8px;
+  text-align: right;
+}
+.word-count-hint.warning {
+  color: #ff4d4f;
+  font-weight: bold;
 }
 </style>

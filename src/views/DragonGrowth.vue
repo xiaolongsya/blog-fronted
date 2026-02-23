@@ -12,9 +12,9 @@
       <div class="main-categories-container">
         <div 
           class="main-category-card clickable"
-          @click="openModal('前端')"
+          @click="openModal('开源项目')"
         >
-          <h3 class="main-category-title">前端</h3>
+          <h3 class="main-category-title">开源项目</h3>
         </div>
         <div 
           class="main-category-card clickable"
@@ -24,15 +24,21 @@
         </div>
         <div 
           class="main-category-card clickable"
-          @click="openModal('算法')"
+          @click="openModal('前端')"
         >
-          <h3 class="main-category-title">算法</h3>
+          <h3 class="main-category-title">前端</h3>
         </div>
         <div 
           class="main-category-card clickable"
-          @click="openModal('其他')"
+          @click="openModal('计算机基础')"
         >
-          <h3 class="main-category-title">其他</h3>
+          <h3 class="main-category-title">计算机基础</h3>
+        </div>
+        <div 
+          class="main-category-card clickable"
+          @click="openModal('算法')"
+        >
+          <h3 class="main-category-title">算法</h3>
         </div>
       </div>
     </div>
@@ -93,7 +99,7 @@ const categories = ref([])
 const loading = ref(true)
 // 弹窗相关响应式变量
 const modalVisible = ref(false)
-const currentMainCategory = ref('') // 记录当前点击的四大分类
+const currentMainCategory = ref('') 
 
 /**
  * 获取分类列表数据 (已适配 request.js)
@@ -245,7 +251,7 @@ onMounted(() => {
   transition: all 0.15s ease; /* 缩短过渡时长，更流畅 */
   border: 2px solid #b3d8ff;
   text-align: center;
-  width: 260px; /* 固定卡片宽度，保持整齐 */
+  width: 300px; /* 固定卡片宽度，保持整齐 */
   user-select: none;
 }
 

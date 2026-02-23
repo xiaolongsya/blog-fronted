@@ -46,6 +46,12 @@ const toolsList = [
     name: "图吧工具箱",
     desc: "电脑发烧友？想要了解你的电脑详细？图吧工具箱可以满足你绝大多数的愿望！温度检测，硬盘情况等各项属性都可查看",
     link: "https://www.tbtool.cn/"
+  },
+    {
+    icon: "https://xiaolongya.cn/uploads/f2327352-f1cf-46ab-af83-b0741bd2318f.jpg",
+    name: "Deskpins",
+    desc: "窗口置顶软件，ctrl + f11热键并鼠标点击指定窗口即可置顶窗口",
+    link: "https://efotinis.neocities.org/deskpins/"
   }
 ];
 
