@@ -117,7 +117,7 @@
     >
       <div class="tech-header">
         <h3 class="tech-title">龙岛AI助手</h3>
-        <p class="tech-sub">DeepSeek 强力驱动</p>
+        <p class="tech-sub">阿里云百炼-强力驱动</p>
         <!-- 移动端关闭按钮（阻止事件冒泡） -->
         <button 
           class="ai-close-btn" 
@@ -134,10 +134,10 @@
           <div class="msg-bubble" v-if="msg.role === 'user' && msg.content">
             {{ msg.content }}
           </div>
-          <!-- AI消息：优化版 - 打字时纯文本，结束后渲染Markdown -->
+          <!-- AI消息：支持[[关键词]]渲染可点击按钮 -->
           <div v-if="msg.role === 'assistant' && msg.displayContent" class="msg-bubble markdown-content">
             <span v-if="isAiTyping || typewriterTimer">{{ msg.displayContent }}</span>
-            <span v-else v-html="renderMarkdown(msg.displayContent)"></span>
+            <span v-else v-html="renderClickableMarkdown(msg.displayContent)"></span>
           </div>
         </div>
         
@@ -200,6 +200,75 @@
       <div class="tech-footer">熟练度上限五颗星</div>
     </div>
   </div>
+  <!-- 登录弹窗 -->
+<transition name="modal-fast">
+  <div class="login-modal-mask" v-if="showLoginModal" @click="closeLoginModal">
+    <div class="login-modal" @click.stop>
+      <!-- 登录成功提示层 -->
+      <div class="success-overlay" v-if="loginSuccess">
+        <div class="success-content">
+          <div class="check-icon">✓</div>
+          <h3>登录成功！</h3>
+          <p>即将跳转到管理后台...</p>
+        </div>
+      </div>
+
+      <!-- 登录表单层 -->
+      <div v-else>
+        <div class="modal-decoration"></div>
+        <h2 class="modal-title">龙岛管理后台</h2>
+        <input 
+          v-model="loginForm.username" 
+          type="text" 
+          placeholder="请输入管理员账号" 
+          class="modal-input"
+        />
+        <input 
+          v-model="loginForm.password" 
+          type="password" 
+          placeholder="请输入管理员密码" 
+          class="modal-input"
+        />
+        <button 
+          class="modal-login-btn" 
+          @click="handleLogin"
+          :disabled="isLoginLoading"
+        >
+          <span v-if="!isLoginLoading">登录</span>
+          <span v-else class="loading-spinner">↻</span>
+        </button>
+        <button class="modal-close-btn" @click="closeLoginModal">取消</button>
+      </div>
+    </div>
+  </div>
+</transition>
+
+<!-- 文章详情弹窗 -->
+<transition name="modal-fast">
+  <div class="login-modal-mask" v-if="showDetailModal" @click="closeDetailModal">
+    <div class="detail-modal" @click.stop>
+      <div class="detail-header">
+        <h2 class="detail-title">{{ currentArticle.title }}</h2>
+        <p class="detail-meta">{{ formatTimeSimple(currentArticle.createTime) }}</p>
+        <button 
+          class="view-category-btn" 
+          v-if="currentArticle.growthId"
+          @click="goToCategory(currentArticle.growthId, currentArticle.categoryName)"
+        >
+          查看分类
+        </button>
+      </div>
+      <div class="detail-content markdown-body">
+        <div v-if="isRenderingDetail" class="loading-placeholder">
+          <div class="skeleton-line" style="width: 80%;"></div>
+          <div class="skeleton-line" style="width: 100%;"></div>
+          <div class="skeleton-line" style="width: 90%;"></div>
+        </div>
+        <div v-else class="content-body" v-html="detailContentHtml"></div>
+      </div>
+    </div>
+  </div>
+</transition>
 </template>
 
 <script setup>
@@ -208,7 +277,7 @@ import { useRouter } from 'vue-router'
 import request from '@/utils/request'
 import { ElMessage } from 'element-plus'
 
-// ========== 1. 引入 Markdown 渲染库（零额外依赖） ==========
+// ========== 1. 引入 Markdown 渲染库 ==========
 import MarkdownIt from 'markdown-it'
 import 'github-markdown-css/github-markdown.css'
 
@@ -246,7 +315,7 @@ const debounce = (fn, delay = 100) => {
   }
 }
 
-// ========== Markdown 渲染函数（核心修复） ==========
+// ========== Markdown 渲染函数（支持[[关键词]]可点击） ==========
 const renderMarkdown = (content) => {
   if (!content) return ''
   // 1. 彻底还原所有转义字符，确保Markdown语法生效
@@ -258,6 +327,50 @@ const renderMarkdown = (content) => {
   // 2. 简单渲染，避免复杂逻辑导致白屏
   return md.render(formattedContent)
 }
+
+// 新增：解析[[关键词]]并渲染成可点击搜索按钮
+const renderClickableMarkdown = (content) => {
+  if (!content) return '';
+  
+  // 步骤1：先渲染普通Markdown
+  const rawHtml = renderMarkdown(content);
+  
+  // 步骤2：替换[[关键词]]为可点击按钮（核心逻辑）
+  const clickableHtml = rawHtml.replace(
+    /\[\[(.*?)\]\]/g, // 匹配[[关键词]]格式
+    (match, keyword) => {
+      // 生成可点击按钮，绑定全局搜索方法
+      return `<button 
+        class="search-trigger-btn" 
+        onclick="window.triggerSearchFromAI('${keyword}')"
+        title="点击搜索 ${keyword} 相关内容"
+      >${keyword}</button>`;
+    }
+  );
+  
+  return clickableHtml;
+};
+
+// 新增：暴露全局搜索方法（供按钮调用）
+window.triggerSearchFromAI = (searchKeyword) => {
+  if (!searchKeyword || typeof searchKeyword !== 'string') return;
+  
+  // 1. 填入页面搜索框
+  keyword.value = searchKeyword.trim();
+  // 2. 自动触发搜索
+  handleSearch();
+  // 3. 优化体验：滚动到搜索结果区域
+  nextTick(() => {
+    const searchResultEl = document.querySelector('.search-results-list');
+    if (searchResultEl) {
+      searchResultEl.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    }
+    // 手机端自动关闭AI面板，显示搜索结果
+    if (isMobile.value) {
+      showAiPanel.value = false;
+    }
+  });
+};
 
 // ========== 🐲 AI 对话核心逻辑 ==========
 const aiQuery = ref('') 
@@ -293,7 +406,7 @@ const startCooldown = (seconds) => {
   }, 1000)
 }
 
-// AI对话核心（极简版，避免白屏）
+// AI对话核心（优化版，支持完整解析[[关键词]]）
 const handleAiChat = async () => {
   if (!aiQuery.value.trim() || isAiThinking.value || aiCooldown.value > 0) return;
 
@@ -334,23 +447,40 @@ const handleAiChat = async () => {
         line = line.trim();
         if (!line || line === 'data: [DONE]') continue;
 
-        // 极简正则提取文本，避免解析错误
-        const match = line.match(/"content"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/);
-        if (match && match[1]) {
-          const delta = match[1]
-            .replace(/\\n/g, '\n')
-            .replace(/\\"/g, '"')
-            .replace(/\\\\/g, '\\');
-
-          if (delta) {
-            isAiTyping.value = false;
-            fullResponse += delta;
-            // 实时更新，强制响应式
-            setTimeout(() => {
-              aiMessageObj.displayContent = fullResponse;
-              messages.value = [...messages.value];
-              scrollToBottomDebounced();
-            }, 0);
+        // 优化：优先解析完整JSON，避免正则截断[[关键词]]
+        try {
+          let jsonStr = line.startsWith('data: ') ? line.slice(6).trim() : line;
+          if (jsonStr && jsonStr !== '[DONE]') {
+            const data = JSON.parse(jsonStr);
+            const delta = data?.choices?.[0]?.delta?.content || '';
+            if (delta) {
+              isAiTyping.value = false;
+              fullResponse += delta;
+              // 实时更新，强制响应式
+              setTimeout(() => {
+                aiMessageObj.displayContent = fullResponse;
+                messages.value = [...messages.value];
+                scrollToBottomDebounced();
+              }, 0);
+            }
+          }
+        } catch (e) {
+          // 兼容正则提取（兜底）
+          const match = line.match(/"content"\s*:\s*"([^"\\]*(\\.[^"\\]*)*)"/);
+          if (match && match[1]) {
+            const delta = match[1]
+              .replace(/\\n/g, '\n')
+              .replace(/\\"/g, '"')
+              .replace(/\\\\/g, '\\');
+            if (delta) {
+              isAiTyping.value = false;
+              fullResponse += delta;
+              setTimeout(() => {
+                aiMessageObj.displayContent = fullResponse;
+                messages.value = [...messages.value];
+                scrollToBottomDebounced();
+              }, 0);
+            }
           }
         }
       }
@@ -379,7 +509,7 @@ const handleAiChat = async () => {
   }
 };
 
-// ========== 其他辅助逻辑（保留核心，简化避免白屏） ==========
+// ========== 其他辅助逻辑 ==========
 const circleList = [
   { content: "龙岛发展\n(开源项目)", path: '/dragon-development' },
   { content: "龙岛聚会\n(评论社区)", path: '/comment-area' },
@@ -540,7 +670,7 @@ const formatTimeSimple = (timeStr) => {
   }).replace(/\//g, '-')
 }
 
-// ========== 生命周期（极简，避免内存泄漏） ==========
+// ========== 生命周期 ==========
 onMounted(() => {
   checkDevice()
   window.addEventListener('resize', checkDevice)
@@ -554,8 +684,27 @@ onBeforeUnmount(() => {
 })
 </script>
 
-<!-- 关键：表格/Markdown 样式，避免渲染异常 -->
 <style scoped>
+/* 可点击关键词按钮样式 */
+:deep(.search-trigger-btn) {
+  display: inline-block;
+  padding: 2px 8px;
+  margin: 0 2px;
+  background: #409eff;
+  color: #fff;
+  border: none;
+  border-radius: 4px;
+  font-size: 13px;
+  cursor: pointer;
+  transition: all 0.2s;
+  line-height: 1.4;
+}
+:deep(.search-trigger-btn:hover) {
+  background: #2f5496;
+  transform: translateY(-1px);
+  box-shadow: 0 2px 4px rgba(0,0,0,0.1);
+}
+
 .markdown-content {
   line-height: 1.6;
   font-size: 14px;
@@ -652,9 +801,7 @@ onBeforeUnmount(() => {
   border-color: #409eff;
   cursor: pointer;
 }
-</style>
 
-<style scoped>
 /* ================== 原有通用样式 ================== */
 .unselectable { user-select: none; -webkit-user-select: none; cursor: pointer !important; }
 .hover-scale { transition: transform 0.2s cubic-bezier(0.25, 0.46, 0.45, 0.94); }
