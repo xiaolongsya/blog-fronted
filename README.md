@@ -1,38 +1,34 @@
-# dragon-blog
+# 龙岛 (Dragon Island) - 个人博客前端
 
-This template should help get you started developing with Vue 3 in Vite.
+> 小龙的专属个人博客前端，承载着技术成长、开源项目和生活感悟的分享平台。
 
-## Recommended IDE Setup
+## 📖 项目简介
+**龙岛 (Dragon Island)** 是基于 Vue3 开发的个人博客前端，与后端服务配合，为用户提供沉浸式的内容浏览与互动体验。它不仅是一个展示个人技术栈和成长历程的窗口，更是一个集成了 AI 助手、向量检索等功能的现代化个人站点。
 
-[VS Code](https://code.visualstudio.com/) + [Vue (Official)](https://marketplace.visualstudio.com/items?itemName=Vue.volar) (and disable Vetur).
+## ✨ 核心功能
+- **首页概览**：直观展示博客核心价值，快速导航至开源项目、评论社区和更多分享。
+- **成长历程**：按技术分类（开源项目、后端、前端、计算机基础等）展示文章与笔记，记录学习轨迹。
+- **工具分享**：精心筛选并展示实用开发工具，提供直达链接，助力效率提升。
+- **个人主页（龙窝）**：展示个人信息、个性签名、GitHub 链接及博客友链，打造个人品牌。
+- **AI 助手**：接入阿里云百炼大模型，提供智能问答与内容生成能力。
+- **技术栈展示**：动态加载并分类展示个人技术栈及熟练度，直观呈现技术能力。
+- **评论系统**：支持文章评论与回复，实现读者与作者的互动交流。
+- **响应式设计**：适配不同设备，提供流畅的移动端与桌面端体验。
 
-## Recommended Browser Setup
+## 🛠️ 技术栈
+- **核心框架**：Vue 3
+- **路由管理**：Vue Router
+- **HTTP 客户端**：Axios
+- **构建工具**：Vite
+- **其他**：响应式布局、CSS 预处理器、ESLint 代码规范
 
-- Chromium-based browsers (Chrome, Edge, Brave, etc.):
-  - [Vue.js devtools](https://chromewebstore.google.com/detail/vuejs-devtools/nhdogjmejiglipccpnnnanhbledajbpd)
-  - [Turn on Custom Object Formatter in Chrome DevTools](http://bit.ly/object-formatters)
-- Firefox:
-  - [Vue.js devtools](https://addons.mozilla.org/en-US/firefox/addon/vue-js-devtools/)
-  - [Turn on Custom Object Formatter in Firefox DevTools](https://fxdx.dev/firefox-devtools-custom-object-formatters/)
-
-## Customize configuration
-
-See [Vite Configuration Reference](https://vite.dev/config/).
-
-## Project Setup
-
-```sh
+## 🚀 快速启动
+```bash
+# 安装依赖
 npm install
-```
 
-### Compile and Hot-Reload for Development
-
-```sh
+# 启动开发服务器
 npm run dev
-```
 
-### Compile and Minify for Production
-
-```sh
+# 构建生产版本
 npm run build
-```

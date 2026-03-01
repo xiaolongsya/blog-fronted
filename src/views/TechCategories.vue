@@ -43,6 +43,7 @@
         </div>
       </section>
 
+      <!-- 新增：计算机基础板块 -->
       <section class="tech-section" v-if="basicsList.length > 0">
         <div class="section-header unselectable">
           <h2><span class="emoji-icon">📚</span> 计算机基础 / CS Basics</h2>
@@ -59,7 +60,41 @@
         </div>
       </section>
 
-      <div v-if="frontendList.length === 0 && backendList.length === 0 && basicsList.length === 0" class="empty-state">
+      <!-- 新增：部署与运维板块 -->
+      <section class="tech-section" v-if="devopsList.length > 0">
+        <div class="section-header unselectable">
+          <h2><span class="emoji-icon">🚀</span> 部署与运维 / DevOps</h2>
+          <div class="section-divider"></div>
+        </div>
+        <div class="tech-grid">
+          <div class="tech-card" v-for="item in devopsList" :key="item.id">
+            <img :src="item.imgUrl" class="tech-img" :alt="item.name" loading="lazy" />
+            <span class="tech-name">{{ item.name }}</span>
+            <div class="tech-stars">
+              <span v-for="n in item.starRating" :key="'star-' + item.id + '-' + n" class="star">⭐</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <!-- 新增：AI 集成板块 -->
+      <section class="tech-section" v-if="aiList.length > 0">
+        <div class="section-header unselectable">
+          <h2><span class="emoji-icon">🤖</span> AI 集成 / AI Integration</h2>
+          <div class="section-divider"></div>
+        </div>
+        <div class="tech-grid">
+          <div class="tech-card" v-for="item in aiList" :key="item.id">
+            <img :src="item.imgUrl" class="tech-img" :alt="item.name" loading="lazy" />
+            <span class="tech-name">{{ item.name }}</span>
+            <div class="tech-stars">
+              <span v-for="n in item.starRating" :key="'star-' + item.id + '-' + n" class="star">⭐</span>
+            </div>
+          </div>
+        </div>
+      </section>
+
+      <div v-if="frontendList.length === 0 && backendList.length === 0 && basicsList.length === 0 && devopsList.length === 0 && aiList.length === 0" class="empty-state">
         <span class="loading-spinner">↻</span> 正在唤醒龙的记忆...
       </div>
 
@@ -82,6 +117,10 @@ const fullTechList = ref([])
 const frontendList = computed(() => fullTechList.value.filter(item => item.type === '前端'))
 const backendList = computed(() => fullTechList.value.filter(item => item.type === '后端'))
 const basicsList = computed(() => fullTechList.value.filter(item => item.type === '计算机基础' || item.type === '基础'))
+// 新增：部署与运维分组
+const devopsList = computed(() => fullTechList.value.filter(item => item.type === '部署与运维'))
+// 新增：其他分组
+const aiList = computed(() => fullTechList.value.filter(item => item.type === '其他'))
 
 // 获取技术栈数据
 const fetchTechData = async () => {

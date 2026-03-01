@@ -205,7 +205,7 @@
         <div class="modal-container gpu-layer danger-mode" @click.stop style="width: 450px;">
           <div class="modal-header"><h2 class="modal-title danger-text">删节点 - 选板块</h2></div>
           <div class="modal-body">
-             <select v-model="deleteNodeSelectedType" class="modal-select"><option value="前端">前端</option><option value="后端">后端</option><option value="算法">算法</option><option value="其他">其他</option></select>
+             <select v-model="deleteNodeSelectedType" class="modal-select"><option value="前端">前端</option><option value="后端">后端</option><option value="算法">算法</option><option value="计算机基础">计算机基础</option><option value="开源项目">开源项目</option></select> 
           </div>
           <div class="modal-btn-group"><button class="modal-submit-btn danger-bg" @click="confirmDeleteNodeStep1" :disabled="!deleteNodeSelectedType">下一步</button><button class="modal-cancel-btn" @click="closeDeleteNodeStep1Modal">取消</button></div>
         </div>
@@ -696,7 +696,7 @@ const handleNodeImgError = (idx) => nodeForm.value.imgUrls.splice(idx, 1)
 // ================= 🌟 技术栈（龙岛武库）专属逻辑 =================
 const showStackModal = ref(false);
 const stackActiveTab = ref('upload'); 
-const stackTypes = ['前端', '后端', '计算机基础'];
+const stackTypes = ['前端', '后端', '计算机基础', '部署与运维', '其他'];
 
 const stackForm = ref({
   name: '',
